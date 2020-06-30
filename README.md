@@ -1,2 +1,2 @@
 # hive_android_kotlin
-Hive client or android written in kotlin
+Hive client for android written in kotlin

@@ -27,6 +27,17 @@ class PropertyFragment : Fragment() {
     private var hiveJob: Job? = null
 
     private val propertyList: MutableList<PropType> = mutableListOf()
+
+    private fun hasProperty(prop:PropType):Boolean{
+        // TODO move properties into the Hive model
+        for ((i, p) in this.propertyList.withIndex()) {
+            if (p.first == prop.first){
+                this.propertyList[i] = prop
+                return true
+            }
+        }
+        return false
+    }
     private val propertyAdapter = MyPropertyRecyclerViewAdapter(propertyList)
 
     suspend fun hiveMessages() = withContext(Dispatchers.IO) {
@@ -34,13 +45,15 @@ class PropertyFragment : Fragment() {
         if(!hive.connected) {
             hive.connect("10.0.2.2",3000).collect{
                 var propVal = it.second.value
-//                println("<< received: ${it.first} = $propVal")
-                if(!propertyList.contains(it)){
+                println("<< received: ${it.first} = $propVal")
+                if(!hasProperty(it)){
                     propertyList.add(it)
-                    withContext(Dispatchers.Main) {
-                        propertyAdapter.notifyDataSetChanged()
-                    }
+
                     debug("added $it")
+                }
+                // TODO move properties into the Hive model
+                withContext(Dispatchers.Main) {
+                    propertyAdapter.notifyDataSetChanged()
                 }
             }
         }

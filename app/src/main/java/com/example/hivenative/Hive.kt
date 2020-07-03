@@ -1,27 +1,24 @@
 package com.example.hivenative
 
 import android.util.Log
-import kotlinx.coroutines.*
 import com.moandjiezana.toml.Toml
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.ConflatedBroadcastChannel
-import kotlinx.coroutines.channels.consume
 import kotlinx.coroutines.channels.consumeEach
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import java.io.OutputStream
+import java.net.ConnectException
 import java.net.Socket
 import java.net.SocketException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.charset.Charset
 
-typealias PropType = Pair<String, Hive.Property>
+// name, property, index
+class PropType(val name:String, val property:Hive.Property)
 
 val TAG ="Hive <<"
 fun debug(s:String) = Log.d(TAG, s)
@@ -31,7 +28,7 @@ class Hive {
     var connected: Boolean = false
     private var writer: OutputStream? = null
 
-//    val propertyChannel:ConflatedBroadcastChannel<propType> = ConflatedBroadcastChannel()
+    //    val propertyChannel:ConflatedBroadcastChannel<propType> = ConflatedBroadcastChannel()
     val propertyChannel:Channel<PropType> = Channel()
 
     fun disconnect() {
@@ -42,14 +39,25 @@ class Hive {
 
     suspend fun connect(address: String, port: Int): Flow<PropType> {
         if (!connected) {
-            connection = Socket(address, port)
-            connected = true
+            try {
+                connection = Socket(address, port)
+                connected = true
 
-            writer = connection?.getOutputStream()
+                writer = connection?.getOutputStream()
+            }catch (e: ConnectException) {
+                return flow {
+                    val e = Property("Failed to connect")
+                    _properties.add(PropType("Error", e))
+                    emit(PropType("Error", e))
+                }
+            }
 
         }
 
         debug("Connected to server at $address on port $port")
+
+        // starts the messages consumer that needs to run in a coroutene scope to collect
+        // messages over the socket
         GlobalScope.launch {
             messages().collect{
                 debug( "socket message: $it")
@@ -59,13 +67,20 @@ class Hive {
         return properties()
     }
 
-
+    // this reads from the channel
     suspend fun properties():Flow<PropType> {
         return flow {
-            for ((name, property) in _properties){
-                emit(PropType(name, property))
+            for (p in _properties){
+                emit(p)
             }
+
             propertyChannel.consumeEach {
+                val p = getProperty(it.name)
+                if(p != null) {
+                    p.property.set(it.property)
+                } else{
+                    _properties.add(it)
+                }
                 emit(it)
             }
         }
@@ -133,27 +148,41 @@ class Hive {
         return buffer.array()
     }
 
-    val _properties:HashMap<String, Property> = hashMapOf<String, Property>()
+    //    private val _properties:HashMap<String, Property> = hashMapOf<String, Property>()
+    private val _properties: MutableList<PropType> = mutableListOf()
+    val propertyList:List<PropType>
+        get() {
+            return _properties
+        }
 
-    public fun setProperty(name:String, value:Any){
-        if(_properties.containsKey(name)){
-            _properties[name]?.value = value
+
+    fun setProperty(name:String, value:Any){
+        val p = getProperty(name)
+        if(p != null){
+            p.property.value = value
         } else {
-            _properties[name] = Property(value)
+            _properties.add(PropType(name, Property(value)))
         }
     }
 
-    public fun getProperty(name:String) = _properties[name]
-
-    public fun getOrSetProperty(name:String, value:Any):Property{
-        return if(_properties.containsKey(name)){
-            _properties[name]!!
-        } else {
-            val p = Property(value)
-            _properties[name] = p
-            p
+    fun getProperty(name:String):PropType? {
+        for (p in _properties) {
+            if(p.name == name) {
+                return p
+            }
         }
+        return null
     }
+
+//    public fun getOrSetProperty(name:String, value:Any):Property{
+//        return if(_properties.containsKey(name)){
+//            _properties[name]!!
+//        } else {
+//            val p = Property(value)
+//            _properties[name] = p
+//            p
+//        }
+//    }
 
 
 
@@ -162,13 +191,17 @@ class Hive {
         public var onChanged: ArrayList<((Any) -> Unit)> = arrayListOf()
 
         var value = default
-        set(value) {
-            if(value != field){
-                field = value
-                for(v in onChanged.iterator()){
-                    v(value)
+            set(value) {
+                if(value != field){
+                    field = value
+                    for(v in onChanged.iterator()){
+                        v(value)
+                    }
                 }
             }
+
+        fun set(other:Property){
+            this.value = other.value
         }
 
         fun connect(fn:(Any)->Unit){

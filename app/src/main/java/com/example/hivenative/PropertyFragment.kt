@@ -13,11 +13,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.example.hivenative.dummy.DummyContent
 import kotlinx.android.synthetic.main.fragment_item_list.view.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * A fragment representing a list of Items.
@@ -26,34 +23,30 @@ class PropertyFragment : Fragment() {
     private val hive = Hive()
     private var hiveJob: Job? = null
 
-    private val propertyList: MutableList<PropType> = mutableListOf()
-
-    private fun hasProperty(prop:PropType):Boolean{
-        // TODO move properties into the Hive model
-        for ((i, p) in this.propertyList.withIndex()) {
-            if (p.first == prop.first){
-                this.propertyList[i] = prop
-                return true
-            }
-        }
-        return false
-    }
-    private val propertyAdapter = MyPropertyRecyclerViewAdapter(propertyList)
+    private val propertyAdapter = MyPropertyRecyclerViewAdapter(hive.propertyList)
 
     suspend fun hiveMessages() = withContext(Dispatchers.IO) {
-
         if(!hive.connected) {
+            // localhost for machine that android emulator is running on
             hive.connect("10.0.2.2",3000).collect{
-                var propVal = it.second.value
-                println("<< received: ${it.first} = $propVal")
-                if(!hasProperty(it)){
-                    propertyList.add(it)
+                var propVal = it.property.value
+                debug("<< received: ${it.name} = $propVal")
+                val position = hive.propertyList.size -1
 
-                    debug("added $it")
+                // update value when it changes
+                it.property.connect {
+                    GlobalScope.launch {
+                        withContext(Dispatchers.Main) {
+                            propertyAdapter.notifyItemChanged(position)
+                        }
+                    }
                 }
-                // TODO move properties into the Hive model
+
+                debug("added $it")
+
+                // Show the new value on the list
                 withContext(Dispatchers.Main) {
-                    propertyAdapter.notifyDataSetChanged()
+                    propertyAdapter.notifyItemInserted(hive.propertyList.size)
                 }
             }
         }

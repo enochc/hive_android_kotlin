@@ -29,12 +29,24 @@ class MyPropertyRecyclerViewAdapter(
         holder.contentView.text = item.property.value.toString()
     }
 
+    var onItemRemoved: ((i:String) -> Unit)? = null
+
     override fun getItemCount(): Int = values.size
+
+    private fun removeItem(name:String){
+        onItemRemoved?.invoke(name)
+    }
 
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         //val idView: TextView = view.findViewById(R.id.item_number)
         val idView: TextView = view.item_number
         val contentView: TextView = view.content
+        init {
+            view.btn_delete.setOnClickListener{
+                removeItem(idView.text.toString())
+            }
+        }
+
 
         override fun toString(): String {
             return super.toString() + " '" + contentView.text + "'"

@@ -1,14 +1,14 @@
 package com.example.hivenative
 
 import android.util.Log
+import androidx.lifecycle.lifecycleScope
 import com.moandjiezana.toml.Toml
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.launch
 import java.io.OutputStream
 import java.net.ConnectException
 import java.net.Socket
@@ -18,7 +18,7 @@ import java.nio.ByteOrder
 import java.nio.charset.Charset
 
 // name, property, index
-class PropType(val name:String, val property:Hive.Property)
+class PropType(val name:String, val property:Hive.Property, val doRemove:Int? = null)
 
 val TAG ="Hive <<"
 fun debug(s:String) = Log.d(TAG, s)
@@ -28,7 +28,6 @@ class Hive {
     var connected: Boolean = false
     private var writer: OutputStream? = null
 
-    //    val propertyChannel:ConflatedBroadcastChannel<propType> = ConflatedBroadcastChannel()
     val propertyChannel:Channel<PropType> = Channel()
 
     fun disconnect() {
@@ -37,18 +36,17 @@ class Hive {
         connection?.close()
     }
 
+
     suspend fun connect(address: String, port: Int): Flow<PropType> {
         if (!connected) {
             try {
                 connection = Socket(address, port)
                 connected = true
-
+                setOrAddProperty(PropType("connected", Property("$address:$port")))
                 writer = connection?.getOutputStream()
-            }catch (e: ConnectException) {
+            } catch (e: ConnectException) {
                 return flow {
-                    val e = Property("Failed to connect")
-                    _properties.add(PropType("Error", e))
-                    emit(PropType("Error", e))
+                    setOrAddProperty(PropType("connected", Property("Failed to connect")))
                 }
             }
 
@@ -56,7 +54,7 @@ class Hive {
 
         debug("Connected to server at $address on port $port")
 
-        // starts the messages consumer that needs to run in a coroutene scope to collect
+        // starts the messages consumer that needs to run in a coroutine scope to collect
         // messages over the socket
         GlobalScope.launch {
             messages().collect{
@@ -75,12 +73,7 @@ class Hive {
             }
 
             propertyChannel.consumeEach {
-                val p = getProperty(it.name)
-                if(p != null) {
-                    p.property.set(it.property)
-                } else{
-                    _properties.add(it)
-                }
+                setOrAddProperty(it)
                 emit(it)
             }
         }
@@ -101,6 +94,11 @@ class Hive {
                     inputStream?.read(msgBytes)
 
                     var msg = msgBytes.toString(Charset.defaultCharset())
+                    if(msg.isEmpty()){
+                        // no data received is usually a sign that the socket has been disconnected
+                        throw SocketException()
+                    }
+                    debug("data received: $msg")
 
                     msg.substring(0,3)
                     msg = msg.substring(3)
@@ -114,7 +112,10 @@ class Hive {
                     emit(msg)
                 } catch (e: SocketException) {
                     println("Socket Closed")
+                    _properties.clear()
                     connected = false
+                    propertyChannel.send(PropType("connected", Property("Closed"), doRemove = 0))
+
                 }
             }
         }
@@ -123,13 +124,17 @@ class Hive {
 
     fun write(message: String) {
         if (connected) {
-            val msgByts = (message).toByteArray(Charset.defaultCharset());
-            println("writing: ${msgByts.size}")
-            val sBytes = intToByteArray(msgByts.size)
-            writer?.write(sBytes)
-            writer?.write(msgByts)
-            writer?.flush()
-            println("written")
+            GlobalScope.launch {
+                withContext(Dispatchers.IO){
+                    val msgByts = (message).toByteArray(Charset.defaultCharset());
+                    println("writing: ${msgByts.size}")
+                    val sBytes = intToByteArray(msgByts.size)
+                    writer?.write(sBytes)
+                    writer?.write(msgByts)
+                    writer?.flush()
+                    println("written")
+                }
+            }
         }
     }
 
@@ -149,19 +154,29 @@ class Hive {
     }
 
     //    private val _properties:HashMap<String, Property> = hashMapOf<String, Property>()
-    private val _properties: MutableList<PropType> = mutableListOf()
+    private val _properties: MutableList<PropType> = mutableListOf(PropType("connected", Property("no")))
     val propertyList:List<PropType>
         get() {
             return _properties
         }
 
+    fun deleteProperty(name:String):Int {
+        for ((i,p) in _properties.withIndex()) {
+            if(p.name ==name) {
+                write("|d|${p.name}")
+                _properties.removeAt(i)
+                return i
+            }
+        }
+        return -1
+    }
 
-    fun setProperty(name:String, value:Any){
-        val p = getProperty(name)
-        if(p != null){
-            p.property.value = value
-        } else {
-            _properties.add(PropType(name, Property(value)))
+    fun setOrAddProperty(pt:PropType){
+        val p = getProperty(pt.name)
+        if(p != null) {
+            p.property.set(pt.property)
+        } else{
+            _properties.add(pt)
         }
     }
 
@@ -174,21 +189,10 @@ class Hive {
         return null
     }
 
-//    public fun getOrSetProperty(name:String, value:Any):Property{
-//        return if(_properties.containsKey(name)){
-//            _properties[name]!!
-//        } else {
-//            val p = Property(value)
-//            _properties[name] = p
-//            p
-//        }
-//    }
-
-
 
     inner class Property(default:Any) {
 
-        public var onChanged: ArrayList<((Any) -> Unit)> = arrayListOf()
+        var onChanged: ArrayList<((Any) -> Unit)> = arrayListOf()
 
         var value = default
             set(value) {

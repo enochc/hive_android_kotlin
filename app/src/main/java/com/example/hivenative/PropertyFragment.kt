@@ -1,20 +1,23 @@
 package com.example.hivenative
 
+import android.content.DialogInterface
 import android.os.Bundle
-import androidx.fragment.app.Fragment
-import androidx.recyclerview.widget.GridLayoutManager
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
-import com.example.hivenative.dummy.DummyContent
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import kotlinx.android.synthetic.main.fragment_item_list.view.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
+
 
 /**
  * A fragment representing a list of Items.
@@ -25,30 +28,59 @@ class PropertyFragment : Fragment() {
 
     private val propertyAdapter = MyPropertyRecyclerViewAdapter(hive.propertyList)
 
-    suspend fun hiveMessages() = withContext(Dispatchers.IO) {
+    private suspend fun hiveMessages() = withContext(Dispatchers.IO) {
         if(!hive.connected) {
-            // localhost for machine that android emulator is running on
-            hive.connect("10.0.2.2",3000).collect{
-                var propVal = it.property.value
-                debug("<< received: ${it.name} = $propVal")
-                val position = hive.propertyList.size -1
-
-                // update value when it changes
-                it.property.connect {
-                    GlobalScope.launch {
-                        withContext(Dispatchers.Main) {
-                            propertyAdapter.notifyItemChanged(position)
-                        }
-                    }
-                }
-
-                debug("added $it")
-
-                // Show the new value on the list
-                withContext(Dispatchers.Main) {
-                    propertyAdapter.notifyItemInserted(hive.propertyList.size)
+            propertyAdapter.onItemRemoved = {
+                confirmDelete(it){removed_index ->
+                    propertyAdapter.notifyItemRemoved(removed_index)
                 }
             }
+            // localhost for machine that android emulator is running on
+            hive.connect("10.0.2.2",3000).collect{
+                onPropertyReceived(it)
+
+                // Show the new value on the list
+                if(it.doRemove == null) {
+                    withContext(Dispatchers.Main) {
+                        propertyAdapter.notifyItemInserted(hive.propertyList.size)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun confirmDelete(msg:String, done:(Int)->Unit){
+        AlertDialog.Builder(this.requireContext())
+            .setTitle("Delete Property")
+            .setMessage("Do you really want to delete \"$msg\"?")
+            .setPositiveButton(android.R.string.yes) { _dialog, _whichButton ->
+                val index = hive.deleteProperty(msg)
+                done(index)
+            }
+            .setNegativeButton(android.R.string.no, null).show()
+    }
+
+
+    private fun onPropertyReceived(p:PropType){
+        if(p.doRemove != null){
+            GlobalScope.launch {
+                withContext(Dispatchers.Main) {
+                    propertyAdapter.notifyItemRangeRemoved(0, propertyAdapter.itemCount)
+                }
+            }
+        } else {
+            val position = hive.propertyList.size - 1
+
+            // update value when it changes
+            p.property.connect {
+                GlobalScope.launch {
+                    withContext(Dispatchers.Main) {
+                        propertyAdapter.notifyItemChanged(position)
+                    }
+                }
+            }
+
+            debug("added $p")
         }
     }
 

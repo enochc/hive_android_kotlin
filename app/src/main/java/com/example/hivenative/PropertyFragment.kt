@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.core.view.isInvisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
@@ -22,17 +23,32 @@ import kotlinx.coroutines.flow.collect
 /**
  * A fragment representing a list of Items.
  */
-class PropertyFragment : Fragment() {
-    private val hive = Hive()
+class PropertyFragment(private val showBack:Boolean=true, hiveName:String="Android Hive") : Fragment() {
+    private val hive = Hive(hiveName)
     private var hiveJob: Job? = null
 
     private val propertyAdapter = MyPropertyRecyclerViewAdapter(hive.propertyList)
 
     private suspend fun hiveMessages() = withContext(Dispatchers.IO) {
         if(!hive.connected) {
+            // Removed from this hive client
             propertyAdapter.onItemRemoved = {
                 confirmDelete(it){removed_index ->
                     propertyAdapter.notifyItemRemoved(removed_index)
+                }
+            }
+            propertyAdapter.onItemEdit = {
+                println("<<<< EDIT: $it")
+                editDialog(it)
+            }
+            // TODO:: blahhhh,,, fix this
+            hive.onConnectedChanged {connected ->
+                if (connected) {
+                    GlobalScope.launch {
+                        withContext(Dispatchers.IO){
+                            hive.requestPeers()
+                        }
+                    }
                 }
             }
             // localhost for machine that android emulator is running on
@@ -40,13 +56,31 @@ class PropertyFragment : Fragment() {
                 onPropertyReceived(it)
 
                 // Show the new value on the list
-                if(it.doRemove == null) {
+                if (it.doRemove == null) {
                     withContext(Dispatchers.Main) {
                         propertyAdapter.notifyItemInserted(hive.propertyList.size)
+                    }
+                } else {
+                    // Removed from another client and came over the hive stream
+                    withContext(Dispatchers.Main) {
+                        propertyAdapter.notifyItemRemoved(it.doRemove)
                     }
                 }
             }
         }
+    }
+    private fun editDialog(prop:Hive.Property?){
+        AlertDialog.Builder(this.requireContext())
+            .setTitle("Edit Property")
+            .setMessage(prop?.value.toString())
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(android.R.string.ok) {_dialog, _whichButton ->
+                println("<<<< Save property!!")
+            }
+            .show()
+    }
+    private fun deleteProperty(){
+
     }
 
     private fun confirmDelete(msg:String, done:(Int)->Unit){
@@ -57,12 +91,13 @@ class PropertyFragment : Fragment() {
                 val index = hive.deleteProperty(msg)
                 done(index)
             }
-            .setNegativeButton(android.R.string.no, null).show()
+            .setNegativeButton(android.R.string.no, null)
+            .show()
     }
 
 
     private fun onPropertyReceived(p:PropType){
-        if(p.doRemove != null){
+        if(false) {//(p.doRemove != null){
             GlobalScope.launch {
                 withContext(Dispatchers.Main) {
                     propertyAdapter.notifyItemRangeRemoved(0, propertyAdapter.itemCount)
@@ -131,8 +166,12 @@ class PropertyFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        view.findViewById<Button>(R.id.button_second).setOnClickListener {
-            findNavController().navigate(R.id.action_PropertiesFragment_to_FirstFragment)
+        if(showBack) {
+            view.findViewById<Button>(R.id.button_second).setOnClickListener {
+                findNavController().navigate(R.id.action_PropertiesFragment_to_FirstFragment)
+            }
+        } else {
+            view.button_second.visibility = View.INVISIBLE
         }
     }
 

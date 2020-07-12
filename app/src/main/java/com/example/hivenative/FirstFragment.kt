@@ -11,6 +11,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.*
 import androidx.navigation.fragment.findNavController
 import kotlinx.android.synthetic.main.fragment_first.*
+import kotlinx.android.synthetic.main.fragment_first.view.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
 
@@ -40,6 +41,10 @@ class FirstFragment : Fragment() {
         view.findViewById<Button>(R.id.button_first).setOnClickListener {
             findNavController().navigate(R.id.action_FirstFragment_to_PropertiesFragment)
         }
+        view.button_second.setOnClickListener {
+            findNavController().navigate(R.id.action_FirstFragment_to_CompositeFragment)
+        }
+
         a_button.setOnTouchListener { v, event ->
             when(event.action) {
                 MotionEvent.ACTION_DOWN -> {

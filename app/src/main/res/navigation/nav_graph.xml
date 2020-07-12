@@ -10,10 +10,22 @@
         android:name="com.example.hivenative.FirstFragment"
         android:label="@string/first_fragment_label"
         tools:layout="@layout/fragment_first">
-
         <action
             android:id="@+id/action_FirstFragment_to_PropertiesFragment"
             app:destination="@id/PropertiesFragment" />
+        <action
+            android:id="@+id/action_FirstFragment_to_CompositeFragment"
+            app:destination="@id/CompositeFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/CompositeFragment"
+        android:name="com.example.hivenative.CompositeFragment"
+        android:label="@string/composite_fragment_label"
+        tools:layout="@layout/fragment_first">
+        <action
+            android:id="@+id/action_CompositeFragment_to_FirstFragment"
+            app:destination="@id/FirstFragment" />
+
     </fragment>
     <fragment
         android:id="@+id/PropertiesFragment"

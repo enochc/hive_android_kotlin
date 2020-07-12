@@ -1,7 +1,6 @@
 package com.example.hivenative
 
 import android.util.Log
-import androidx.lifecycle.lifecycleScope
 import com.moandjiezana.toml.Toml
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -9,6 +8,7 @@ import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import org.jetbrains.annotations.NotNull
 import java.io.OutputStream
 import java.net.ConnectException
 import java.net.Socket
@@ -17,15 +17,26 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.charset.Charset
 
-// name, property, index
 class PropType(val name:String, val property:Hive.Property, val doRemove:Int? = null)
 
 val TAG ="Hive <<"
 fun debug(s:String) = Log.d(TAG, s)
 
-class Hive {
+val DELETE = "|d|"
+val HEADER = "|H|"
+val PROPERTIES = "|P|"
+val PROPERTY = "|p|"
+val REQUEST_PEERS = "<p|"
+val ACK  = "<<|";
+
+class Hive(val name:String ="Android client") {
     private var connection: Socket? = null
     var connected: Boolean = false
+    set(c:Boolean) {
+        field = c
+        connectedChanged?.invoke(field)
+    }
+
     private var writer: OutputStream? = null
 
     val propertyChannel:Channel<PropType> = Channel()
@@ -36,20 +47,31 @@ class Hive {
         connection?.close()
     }
 
+    var connectedChanged: ((Boolean)->Unit)? = null
+
+    fun onConnectedChanged(f: (Boolean)->Unit) {
+        connectedChanged = f
+    }
+
+    suspend fun requestPeers() {
+        write(REQUEST_PEERS)
+    }
+
 
     suspend fun connect(address: String, port: Int): Flow<PropType> {
         if (!connected) {
             try {
                 connection = Socket(address, port)
                 connected = true
-                setOrAddProperty(PropType("connected", Property("$address:$port")))
                 writer = connection?.getOutputStream()
-            } catch (e: ConnectException) {
-                return flow {
-                    setOrAddProperty(PropType("connected", Property("Failed to connect")))
-                }
-            }
 
+                // send header with peer name
+                val header_message = "${HEADER}NAME=${this.name}"
+                write(header_message)
+            } catch (e: ConnectException) {
+                debug("Error: $e")
+                connected = false
+            }
         }
 
         debug("Connected to server at $address on port $port")
@@ -66,14 +88,16 @@ class Hive {
     }
 
     // this reads from the channel
-    suspend fun properties():Flow<PropType> {
+    private suspend fun properties():Flow<PropType> {
         return flow {
             for (p in _properties){
                 emit(p)
             }
 
             propertyChannel.consumeEach {
-                setOrAddProperty(it)
+                if(it.doRemove == null) {
+                    setOrAddProperty(it)
+                }
                 emit(it)
             }
         }
@@ -100,22 +124,45 @@ class Hive {
                     }
                     debug("data received: $msg")
 
-                    msg.substring(0,3)
+                    val msgType = msg.substring(0,3)
                     msg = msg.substring(3)
 
-                    val toml = Toml().read(msg)
-                    for ((name, value) in toml.entrySet()) {
-                        val prop = PropType(name, Property(value))
-                        propertyChannel.send(prop)
+                    if(msgType == HEADER) {
+                        //TODO maybe do something with this? the name of the server Hive
+                        val name = msg.split("NAME=")[1]
+                        println("HEADER NAME: $name")
+                    } else if(msgType == DELETE) { // delete message
+
+                        for ((i,p) in _properties.withIndex()) {
+                            if(p.name == msg) {
+                                debug("remove|| $msg")
+                                _properties.removeAt(i)
+                                val prop = PropType(msg, Property(null), i)
+                                propertyChannel.send(prop)
+                                break
+                            }
+                        }
+                    }else if(msgType == PROPERTY || msgType == PROPERTIES) {
+                        val toml = Toml().read(msg)
+                        for ((name, value) in toml.entrySet()) {
+                            val prop = PropType(name, Property(value))
+                            propertyChannel.send(prop)
+                        }
+
+                        emit(msg)
+                    }else if(msgType == ACK) {
+                        println("ACK RECEIVED")
+                    }else if(msgType == REQUEST_PEERS) {
+                        println("<<<< RECEIVED PEERS $msg")
+                    } else {
+                        println("ERROR: unknown message: $msg")
                     }
 
-                    emit(msg)
+
                 } catch (e: SocketException) {
                     println("Socket Closed")
                     _properties.clear()
                     connected = false
-                    propertyChannel.send(PropType("connected", Property("Closed"), doRemove = 0))
-
                 }
             }
         }
@@ -154,11 +201,11 @@ class Hive {
     }
 
     //    private val _properties:HashMap<String, Property> = hashMapOf<String, Property>()
-    private val _properties: MutableList<PropType> = mutableListOf(PropType("connected", Property("no")))
+    private val _properties: MutableList<PropType> = mutableListOf()
     val propertyList:List<PropType>
-        get() {
-            return _properties
-        }
+    get() {
+        return _properties
+    }
 
     fun deleteProperty(name:String):Int {
         for ((i,p) in _properties.withIndex()) {
@@ -190,9 +237,9 @@ class Hive {
     }
 
 
-    inner class Property(default:Any) {
+    inner class Property(default:Any?) {
 
-        var onChanged: ArrayList<((Any) -> Unit)> = arrayListOf()
+        var onChanged: ArrayList<((Any?) -> Unit)> = arrayListOf()
 
         var value = default
             set(value) {
@@ -208,13 +255,12 @@ class Hive {
             this.value = other.value
         }
 
-        fun connect(fn:(Any)->Unit){
+        fun connect(fn:(Any?)->Unit){
             onChanged.add(fn)
         }
 
         fun save() {
             val h = this@Hive.write("${this@Property}=${value}")
         }
-
     }
 }

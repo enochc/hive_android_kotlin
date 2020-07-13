@@ -20,7 +20,6 @@
         android:name="com.example.hivenative.PropertyFragment"
         android:layout_width="match_parent"
         app:layout_constraintTop_toBottomOf="@id/button_second"
-        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginLeft="16dp"
@@ -28,6 +27,23 @@
         app:layoutManager="LinearLayoutManager"
         tools:context=".PropertyFragment"
         tools:listitem="@layout/fragment_item"
-        android:layout_height="0dp" />
-    <!--        android:layout_height="match_parent"-->
+        android:layout_height="wrap_content" />
+
+    <TextView
+        android:layout_marginTop="10dp"
+        android:id="@+id/spinner_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toBottomOf="@id/list"
+        app:layout_constraintStart_toStartOf="@id/list"
+        android:text="Send message to peer:"/>
+
+    <Spinner
+        android:id="@+id/peers_spinner"
+        android:layout_width="wrap_content"
+        android:layout_height="30dp"
+        app:layout_constraintStart_toEndOf="@id/spinner_label"
+        app:layout_constraintTop_toTopOf="@id/spinner_label"
+        android:spinnerMode="dropdown"/>
+
 </androidx.constraintlayout.widget.ConstraintLayout>

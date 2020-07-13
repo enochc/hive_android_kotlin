@@ -8,7 +8,6 @@ import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
-import org.jetbrains.annotations.NotNull
 import java.io.OutputStream
 import java.net.ConnectException
 import java.net.Socket
@@ -18,6 +17,11 @@ import java.nio.ByteOrder
 import java.nio.charset.Charset
 
 class PropType(val name:String, val property:Hive.Property, val doRemove:Int? = null)
+class Peer(val name:String, val address:String){
+    override fun toString():String {
+        return "\"${this.name}\": ${this.address}"
+    }
+}
 
 val TAG ="Hive <<"
 fun debug(s:String) = Log.d(TAG, s)
@@ -48,13 +52,10 @@ class Hive(val name:String ="Android client") {
     }
 
     var connectedChanged: ((Boolean)->Unit)? = null
+    var peersChanged:(()->Unit)? = null
 
     fun onConnectedChanged(f: (Boolean)->Unit) {
         connectedChanged = f
-    }
-
-    suspend fun requestPeers() {
-        write(REQUEST_PEERS)
     }
 
 
@@ -65,9 +66,9 @@ class Hive(val name:String ="Android client") {
                 connected = true
                 writer = connection?.getOutputStream()
 
-                // send header with peer name
-                val header_message = "${HEADER}NAME=${this.name}"
-                write(header_message)
+                // send header with peer name then request peer updates
+                write("${HEADER}NAME=${this.name}")
+                write(REQUEST_PEERS)
             } catch (e: ConnectException) {
                 debug("Error: $e")
                 connected = false
@@ -154,6 +155,12 @@ class Hive(val name:String ="Android client") {
                         println("ACK RECEIVED")
                     }else if(msgType == REQUEST_PEERS) {
                         println("<<<< RECEIVED PEERS $msg")
+                        _peers.clear()
+                        for ( p in msg.split(",").iterator()) {
+                            val x = p.split("|")
+                            _peers.add(x[0])
+                        }
+                        peersChanged?.invoke()
                     } else {
                         println("ERROR: unknown message: $msg")
                     }
@@ -171,11 +178,11 @@ class Hive(val name:String ="Android client") {
 
     fun write(message: String) {
         if (connected) {
-            GlobalScope.launch {
+            runBlocking {
                 withContext(Dispatchers.IO){
                     val msgByts = (message).toByteArray(Charset.defaultCharset());
-                    println("writing: ${msgByts.size}")
                     val sBytes = intToByteArray(msgByts.size)
+                    println("<<<< writing: ${message}")
                     writer?.write(sBytes)
                     writer?.write(msgByts)
                     writer?.flush()
@@ -207,6 +214,12 @@ class Hive(val name:String ="Android client") {
         return _properties
     }
 
+    private val _peers:MutableList<String> = mutableListOf()
+    val peersList:List<String>
+    get() {
+        return _peers
+    }
+
     fun deleteProperty(name:String):Int {
         for ((i,p) in _properties.withIndex()) {
             if(p.name ==name) {
@@ -218,7 +231,7 @@ class Hive(val name:String ="Android client") {
         return -1
     }
 
-    fun setOrAddProperty(pt:PropType){
+    private fun setOrAddProperty(pt:PropType){
         val p = getProperty(pt.name)
         if(p != null) {
             p.property.set(pt.property)
@@ -227,7 +240,7 @@ class Hive(val name:String ="Android client") {
         }
     }
 
-    fun getProperty(name:String):PropType? {
+    private fun getProperty(name:String):PropType? {
         for (p in _properties) {
             if(p.name == name) {
                 return p

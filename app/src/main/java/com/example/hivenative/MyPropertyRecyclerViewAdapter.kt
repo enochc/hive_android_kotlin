@@ -27,7 +27,6 @@ class MyPropertyRecyclerViewAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = values[position]
         holder.idView.text = item.name
-//        holder.contentView.text = item.property.value.toString()
         holder.editBtn.text = item.property.value.toString()
         holder.property = item.property
     }
@@ -39,9 +38,7 @@ class MyPropertyRecyclerViewAdapter(
 
 
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        //val idView: TextView = view.findViewById(R.id.item_number)
         val idView: TextView = view.item_number
-//        val contentView: TextView = view.content
         val editBtn:Button = view.edit_btn
         var property:Hive.Property? = null
 

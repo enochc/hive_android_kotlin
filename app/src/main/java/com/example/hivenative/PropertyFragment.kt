@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -23,15 +24,17 @@ import kotlinx.coroutines.flow.collect
 /**
  * A fragment representing a list of Items.
  */
-class PropertyFragment(private val showBack:Boolean=true, hiveName:String="Android Hive") : Fragment() {
+class PropertyFragment(private val showBack:Boolean=true, val hiveName:String="Android Hive") : Fragment() {
     private val hive = Hive(hiveName)
     private var hiveJob: Job? = null
 
     private val propertyAdapter = MyPropertyRecyclerViewAdapter(hive.propertyList)
+    private var peerAdapter:ArrayAdapter<String>? = null
+    private var peerList:MutableList<String> = mutableListOf()
 
     private suspend fun hiveMessages() = withContext(Dispatchers.IO) {
         if(!hive.connected) {
-            // Removed from this hive client
+
             propertyAdapter.onItemRemoved = {
                 confirmDelete(it){removed_index ->
                     propertyAdapter.notifyItemRemoved(removed_index)
@@ -41,16 +44,17 @@ class PropertyFragment(private val showBack:Boolean=true, hiveName:String="Andro
                 println("<<<< EDIT: $it")
                 editDialog(it)
             }
-            // TODO:: blahhhh,,, fix this
-            hive.onConnectedChanged {connected ->
-                if (connected) {
-                    GlobalScope.launch {
-                        withContext(Dispatchers.IO){
-                            hive.requestPeers()
-                        }
+
+            hive.peersChanged = {
+                GlobalScope.launch {
+                    peerList.clear()
+                    peerList.addAll( hive.peersList.filter { it != hiveName })
+                    withContext(Dispatchers.Main) {
+                        peerAdapter?.notifyDataSetChanged()
                     }
                 }
             }
+
             // localhost for machine that android emulator is running on
             hive.connect("10.0.2.2",3000).collect{
                 onPropertyReceived(it)
@@ -67,6 +71,7 @@ class PropertyFragment(private val showBack:Boolean=true, hiveName:String="Andro
                     }
                 }
             }
+
         }
     }
     private fun editDialog(prop:Hive.Property?){
@@ -78,9 +83,6 @@ class PropertyFragment(private val showBack:Boolean=true, hiveName:String="Andro
                 println("<<<< Save property!!")
             }
             .show()
-    }
-    private fun deleteProperty(){
-
     }
 
     private fun confirmDelete(msg:String, done:(Int)->Unit){
@@ -95,28 +97,18 @@ class PropertyFragment(private val showBack:Boolean=true, hiveName:String="Andro
             .show()
     }
 
-
     private fun onPropertyReceived(p:PropType){
-        if(false) {//(p.doRemove != null){
+        val position = hive.propertyList.size - 1
+
+        // update value when it changes
+        p.property.connect {
             GlobalScope.launch {
                 withContext(Dispatchers.Main) {
-                    propertyAdapter.notifyItemRangeRemoved(0, propertyAdapter.itemCount)
+                    propertyAdapter.notifyItemChanged(position)
                 }
             }
-        } else {
-            val position = hive.propertyList.size - 1
-
-            // update value when it changes
-            p.property.connect {
-                GlobalScope.launch {
-                    withContext(Dispatchers.Main) {
-                        propertyAdapter.notifyItemChanged(position)
-                    }
-                }
-            }
-
-            debug("added $p")
         }
+        debug("added $p")
     }
 
     override fun onPause() {
@@ -150,6 +142,7 @@ class PropertyFragment(private val showBack:Boolean=true, hiveName:String="Andro
         val view = inflater.inflate(R.layout.fragment_item_list, container, false)
         val recView = view.list
 
+
         // Set the adapter
         if (recView is RecyclerView) {
             with(recView) {
@@ -161,6 +154,8 @@ class PropertyFragment(private val showBack:Boolean=true, hiveName:String="Andro
             }
             debug("items: ${recView.adapter?.itemCount}")
         }
+        this.peerAdapter = ArrayAdapter<String>(requireContext(), android.R.layout.simple_list_item_1, peerList)
+        view.peers_spinner.adapter =  peerAdapter
         return view
     }
 

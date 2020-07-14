@@ -16,7 +16,38 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.charset.Charset
 
-class PropType(val name:String, val property:Hive.Property, val doRemove:Int? = null)
+enum class PropertyType(){
+    STRING,
+    BOOL,
+    NUM,
+    NONE
+}
+
+fun propertyToType(p:Any?):PropertyType{
+    if(p == null) return PropertyType.NONE
+    return when(p){
+        is String -> PropertyType.STRING
+        is Boolean -> PropertyType.BOOL
+        else -> PropertyType.NUM
+    }
+}
+
+class PropType(val name:String, val property:Hive.Property, val type:PropertyType, val doRemove:Int? = null){
+    fun isBool():Boolean {
+        return this.type == PropertyType.BOOL
+    }
+    fun isString():Boolean {
+        return this.type == PropertyType.STRING
+    }
+    fun getBoolValue():Boolean {
+        return if (isBool()) {
+            this.property.value as Boolean
+        } else {
+            false
+        }
+    }
+}
+
 class Peer(val name:String, val address:String){
     override fun toString():String {
         return "\"${this.name}\": ${this.address}"
@@ -26,14 +57,15 @@ class Peer(val name:String, val address:String){
 val TAG ="Hive <<"
 fun debug(s:String) = Log.d(TAG, s)
 
-val DELETE = "|d|"
-val HEADER = "|H|"
-val PROPERTIES = "|P|"
-val PROPERTY = "|p|"
-val REQUEST_PEERS = "<p|"
-val ACK  = "<<|";
-val PEER_MESSAGE = "|s|"
-val PEER_MESSAGE_DIV = "|=|"
+
+const val DELETE = "|d|"
+const val HEADER = "|H|"
+const val PROPERTIES = "|P|"
+const val PROPERTY = "|p|"
+const val REQUEST_PEERS = "<p|"
+const val ACK  = "<<|";
+const val PEER_MESSAGE = "|s|"
+const val PEER_MESSAGE_DIV = "|=|"
 
 class Hive(val name:String ="Android client") {
     private var connection: Socket? = null
@@ -45,7 +77,7 @@ class Hive(val name:String ="Android client") {
 
     private var writer: OutputStream? = null
 
-    val propertyChannel: Channel<PropType> = Channel()
+    private val propertyChannel: Channel<PropType> = Channel()
     private val messageChanel: Channel<String> = Channel()
 
     fun disconnect() {
@@ -150,7 +182,8 @@ class Hive(val name:String ="Android client") {
                             if(p.name == msg) {
                                 debug("remove|| $msg")
                                 _properties.removeAt(i)
-                                val prop = PropType(msg, Property(null), i)
+                                val type = propertyToType(p.property.value)
+                                val prop = PropType(msg, Property(null), type)
                                 propertyChannel.send(prop)
                                 break
                             }
@@ -158,7 +191,8 @@ class Hive(val name:String ="Android client") {
                     }else if(msgType == PROPERTY || msgType == PROPERTIES) {
                         val toml = Toml().read(msg)
                         for ((name, value) in toml.entrySet()) {
-                            val prop = PropType(name, Property(value))
+                            val type = propertyToType(value)
+                            val prop = PropType(name, Property(value), type)
                             propertyChannel.send(prop)
                         }
 
@@ -228,7 +262,6 @@ class Hive(val name:String ="Android client") {
         return buffer.array()
     }
 
-    //    private val _properties:HashMap<String, Property> = hashMapOf<String, Property>()
     private val _properties: MutableList<PropType> = mutableListOf()
     val propertyList:List<PropType>
     get() {
@@ -261,10 +294,25 @@ class Hive(val name:String ="Android client") {
         }
     }
 
-    fun updateProperty(prop_name:String, value:String) {
+    fun updateProperty(prop_name:String, value:Any?) {
         val p = getProperty(prop_name)
         p?.property?.set(Property(value))
-        val msg = "$PROPERTY${prop_name}=\"${value}\""
+        // Boolean values get handled here, no special logic required
+        var msgVal = value
+        try{
+            msgVal = msgVal.toString().toFloat() as Float
+            // If it's a whole number then send an long
+            // can't use an == here, doesn't like that
+            if(msgVal.rem(1) <= 0){
+                msgVal = msgVal.toLong()
+            }
+        }catch (e:NumberFormatException){
+            if(value is String){
+                msgVal = "\"${value}\""
+            }
+        }
+
+        val msg = "$PROPERTY${prop_name}=$msgVal"
         write(msg)
     }
 

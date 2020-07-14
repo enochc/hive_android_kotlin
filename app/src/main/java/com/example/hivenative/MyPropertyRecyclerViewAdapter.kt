@@ -48,7 +48,8 @@ class MyPropertyRecyclerViewAdapter(
                 onItemRemoved?.invoke(idView.text.toString())
             }
             editBtn.setOnClickListener {
-                onItemEdit?.invoke(PropType(idView.text.toString(), property!!))
+                val type = propertyToType(property?.value)
+                onItemEdit?.invoke(PropType(idView.text.toString(), property!!, type))
             }
         }
 

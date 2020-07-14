@@ -21,6 +21,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.hivenative.databinding.EditPropertyBinding
 import com.example.hivenative.databinding.FragmentItemBinding
 import com.example.hivenative.databinding.FragmentItemListBinding
+import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.android.synthetic.main.fragment_item_list.view.*
 import kotlinx.coroutines.*
@@ -109,10 +110,14 @@ class PropertyFragment(private val showBack:Boolean=true, val hiveName:String="A
             .setView(prop_edit_binding?.root)
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                // TODO this updates everything as a sting
-                //  add a type to the PropType type that we can switch on
-                val new = view?.findViewById<TextInputEditText>(R.id.prop_value)?.text.toString()
-                hive.updateProperty(prop.name, new)
+                var v:Any? = null
+                v = if(prop.isBool()) {
+                    view?.findViewById<MaterialCheckBox>(R.id.prop_bool_value)?.isChecked
+                } else {
+                    view?.findViewById<TextInputEditText>(R.id.prop_value)?.text.toString()
+                }
+                hive.updateProperty(prop.name, v)
+
             }
             .show()
     }

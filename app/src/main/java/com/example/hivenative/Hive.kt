@@ -16,30 +16,37 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.charset.Charset
 
-enum class PropertyType(){
+enum class PropertyType() {
     STRING,
     BOOL,
     NUM,
     NONE
 }
 
-fun propertyToType(p:Any?):PropertyType{
-    if(p == null) return PropertyType.NONE
-    return when(p){
+fun propertyToType(p: Any?): PropertyType {
+    if (p == null) return PropertyType.NONE
+    return when (p) {
         is String -> PropertyType.STRING
         is Boolean -> PropertyType.BOOL
         else -> PropertyType.NUM
     }
 }
 
-class PropType(val name:String, val property:Hive.Property, val type:PropertyType, val doRemove:Int? = null){
-    fun isBool():Boolean {
+class PropType(
+    val name: String,
+    val property: Hive.Property,
+    val type: PropertyType,
+    val doRemove: Int? = null
+) {
+    fun isBool(): Boolean {
         return this.type == PropertyType.BOOL
     }
-    fun isString():Boolean {
+
+    fun isString(): Boolean {
         return this.type == PropertyType.STRING
     }
-    fun getBoolValue():Boolean {
+
+    fun getBoolValue(): Boolean {
         return if (isBool()) {
             this.property.value as Boolean
         } else {
@@ -48,32 +55,23 @@ class PropType(val name:String, val property:Hive.Property, val type:PropertyTyp
     }
 }
 
-class Peer(val name:String, val address:String){
-    override fun toString():String {
+class Peer(val name: String, val address: String) {
+    override fun toString(): String {
         return "\"${this.name}\": ${this.address}"
     }
 }
 
-val TAG ="Hive <<"
-fun debug(s:String) = Log.d(TAG, s)
+val TAG = "Hive <<"
+fun debug(s: String) = Log.d(TAG, s)
 
 
-const val DELETE = "|d|"
-const val HEADER = "|H|"
-const val PROPERTIES = "|P|"
-const val PROPERTY = "|p|"
-const val REQUEST_PEERS = "<p|"
-const val ACK  = "<<|";
-const val PEER_MESSAGE = "|s|"
-const val PEER_MESSAGE_DIV = "|=|"
-
-class Hive(val name:String ="Android client") {
+class Hive(val name: String = "Android client") {
     private var connection: Socket? = null
     var connected: Boolean = false
-    set(c:Boolean) {
-        field = c
-        connectedChanged?.invoke(field)
-    }
+        set(c: Boolean) {
+            field = c
+            connectedChanged?.invoke(field)
+        }
 
     private var writer: OutputStream? = null
 
@@ -86,15 +84,15 @@ class Hive(val name:String ="Android client") {
         connection?.close()
     }
 
-    var connectedChanged: ((Boolean)->Unit)? = null
-    var peersChanged:(()->Unit)? = null
+    var connectedChanged: ((Boolean) -> Unit)? = null
+    var peersChanged: (() -> Unit)? = null
 
-    fun onConnectedChanged(f: (Boolean)->Unit) {
+    fun onConnectedChanged(f: (Boolean) -> Unit) {
         connectedChanged = f
     }
 
     suspend fun peerMessages(): Flow<String> {
-        return flow{
+        return flow {
             messageChanel.consumeEach {
                 emit(it)
             }
@@ -124,8 +122,8 @@ class Hive(val name:String ="Android client") {
         // starts the messages consumer that needs to run in a coroutine scope to collect
         // messages over the socket
         GlobalScope.launch {
-            messages().collect{
-                debug( "socket message: $it")
+            messages().collect {
+                debug("socket message: $it")
             }
         }
 
@@ -133,14 +131,14 @@ class Hive(val name:String ="Android client") {
     }
 
     // this reads from the channel
-    private suspend fun properties():Flow<PropType> {
+    private suspend fun properties(): Flow<PropType> {
         return flow {
-            for (p in _properties){
+            for (p in _properties) {
                 emit(p)
             }
 
             propertyChannel.consumeEach {
-                if(it.doRemove == null) {
+                if (it.doRemove == null) {
                     setOrAddProperty(it)
                 }
                 emit(it)
@@ -163,23 +161,23 @@ class Hive(val name:String ="Android client") {
                     inputStream?.read(msgBytes)
 
                     var msg = msgBytes.toString(Charset.defaultCharset())
-                    if(msg.isEmpty()){
+                    if (msg.isEmpty()) {
                         // no data received is usually a sign that the socket has been disconnected
                         throw SocketException()
                     }
                     debug("data received: $msg")
 
-                    val msgType = msg.substring(0,3)
+                    val msgType = msg.substring(0, 3)
                     msg = msg.substring(3)
 
-                    if(msgType == HEADER) {
+                    if (msgType == HEADER) {
                         //TODO maybe do something with this? the name of the server Hive
                         val name = msg.split("NAME=")[1]
                         println("HEADER NAME: $name")
-                    } else if(msgType == DELETE) { // delete message
+                    } else if (msgType == DELETE) { // delete message
 
-                        for ((i,p) in _properties.withIndex()) {
-                            if(p.name == msg) {
+                        for ((i, p) in _properties.withIndex()) {
+                            if (p.name == msg) {
                                 debug("remove|| $msg")
                                 _properties.removeAt(i)
                                 val type = propertyToType(p.property.value)
@@ -188,7 +186,7 @@ class Hive(val name:String ="Android client") {
                                 break
                             }
                         }
-                    }else if(msgType == PROPERTY || msgType == PROPERTIES) {
+                    } else if (msgType == PROPERTY || msgType == PROPERTIES) {
                         val toml = Toml().read(msg)
                         for ((name, value) in toml.entrySet()) {
                             val type = propertyToType(value)
@@ -197,23 +195,22 @@ class Hive(val name:String ="Android client") {
                         }
 
                         emit(msg)
-                    }else if(msgType == ACK) {
+                    } else if (msgType == ACK) {
                         println("ACK RECEIVED")
-                    }else if(msgType == REQUEST_PEERS) {
+                    } else if (msgType == REQUEST_PEERS) {
                         println("<<<< RECEIVED PEERS $msg")
                         _peers.clear()
-                        for ( p in msg.split(",").iterator()) {
+                        for (p in msg.split(",").iterator()) {
                             val x = p.split("|")
                             _peers.add(x[0])
                         }
                         peersChanged?.invoke()
-                    } else if(msgType == PEER_MESSAGE) {
+                    } else if (msgType == PEER_MESSAGE) {
                         println("Received Peer Message: $msg")
                         messageChanel.send(msg)
                     } else {
                         println("ERROR: unknown message: $msg")
                     }
-
 
 
                 } catch (e: SocketException) {
@@ -229,10 +226,10 @@ class Hive(val name:String ="Android client") {
     private fun write(message: String) {
         if (connected) {
             runBlocking {
-                withContext(Dispatchers.IO){
-                    val msgByts = (message).toByteArray(Charset.defaultCharset());
+                withContext(Dispatchers.IO) {
+                    val msgByts = (message).toByteArray(Charset.defaultCharset())
                     val sBytes = intToByteArray(msgByts.size)
-                    println("<<<< writing: ${message}")
+                    println("<<<< writing: $message")
                     writer?.write(sBytes)
                     writer?.write(msgByts)
                     writer?.flush()
@@ -242,9 +239,8 @@ class Hive(val name:String ="Android client") {
         }
     }
 
-    fun writeToPeer(peerName:String, msg:String){
-        val msg = "$PEER_MESSAGE$peerName$PEER_MESSAGE_DIV$msg"
-        write(msg)
+    fun writeToPeer(peerName: String, msg: String) {
+        write("$PEER_MESSAGE$peerName$PEER_MESSAGE_DIV$msg")
     }
 
     @ExperimentalUnsignedTypes
@@ -252,7 +248,7 @@ class Hive(val name:String ="Android client") {
         return (byte[0].toUByte().toInt().shl(24) +
                 byte[1].toUByte().toInt().shl(16) +
                 byte[2].toUByte().toInt().shl(8) +
-                byte[3].toUByte().toInt().shl(0)).toInt()
+                byte[3].toUByte().toInt().shl(0))
     }
 
     private fun intToByteArray(value: Int): ByteArray {
@@ -263,20 +259,20 @@ class Hive(val name:String ="Android client") {
     }
 
     private val _properties: MutableList<PropType> = mutableListOf()
-    val propertyList:List<PropType>
-    get() {
-        return _properties
-    }
+    val propertyList: List<PropType>
+        get() {
+            return _properties
+        }
 
-    private val _peers:MutableList<String> = mutableListOf()
-    val peersList:List<String>
-    get() {
-        return _peers
-    }
+    private val _peers: MutableList<String> = mutableListOf()
+    val peersList: List<String>
+        get() {
+            return _peers
+        }
 
-    fun deleteProperty(name:String):Int {
-        for ((i,p) in _properties.withIndex()) {
-            if(p.name ==name) {
+    fun deleteProperty(name: String): Int {
+        for ((i, p) in _properties.withIndex()) {
+            if (p.name == name) {
                 write("|d|${p.name}")
                 _properties.removeAt(i)
                 return i
@@ -285,29 +281,29 @@ class Hive(val name:String ="Android client") {
         return -1
     }
 
-    private fun setOrAddProperty(pt:PropType){
+    private fun setOrAddProperty(pt: PropType) {
         val p = getProperty(pt.name)
-        if(p != null) {
+        if (p != null) {
             p.property.set(pt.property)
-        } else{
+        } else {
             _properties.add(pt)
         }
     }
 
-    fun updateProperty(prop_name:String, value:Any?) {
+    fun updateProperty(prop_name: String, value: Any?) {
         val p = getProperty(prop_name)
         p?.property?.set(Property(value))
         // Boolean values get handled here, no special logic required
         var msgVal = value
-        try{
+        try {
             msgVal = msgVal.toString().toFloat() as Float
             // If it's a whole number then send an long
             // can't use an == here, doesn't like that
-            if(msgVal.rem(1) <= 0){
+            if (msgVal.rem(1) <= 0) {
                 msgVal = msgVal.toLong()
             }
-        }catch (e:NumberFormatException){
-            if(value is String){
+        } catch (e: NumberFormatException) {
+            if (value is String) {
                 msgVal = "\"${value}\""
             }
         }
@@ -316,9 +312,9 @@ class Hive(val name:String ="Android client") {
         write(msg)
     }
 
-    private fun getProperty(name:String):PropType? {
+    private fun getProperty(name: String): PropType? {
         for (p in _properties) {
-            if(p.name == name) {
+            if (p.name == name) {
                 return p
             }
         }
@@ -326,30 +322,37 @@ class Hive(val name:String ="Android client") {
     }
 
 
-    inner class Property(default:Any?) {
+    inner class Property(default: Any?) {
 
         var onChanged: ArrayList<((Any?) -> Unit)> = arrayListOf()
 
         var value = default
             set(value) {
-                if(value != field){
+                if (value != field) {
                     field = value
-                    for(v in onChanged.iterator()){
+                    for (v in onChanged.iterator()) {
                         v(value)
                     }
                 }
             }
 
-        fun set(other:Property){
+        fun set(other: Property) {
             this.value = other.value
         }
 
-        fun connect(fn:(Any?)->Unit){
+        fun connect(fn: (Any?) -> Unit) {
             onChanged.add(fn)
         }
+    }
 
-        fun save() {
-            val h = this@Hive.write("${this@Property}=${value}")
-        }
+    companion object {
+        const val DELETE = "|d|"
+        const val HEADER = "|H|"
+        const val PROPERTIES = "|P|"
+        const val PROPERTY = "|p|"
+        const val REQUEST_PEERS = "<p|"
+        const val ACK = "<<|";
+        const val PEER_MESSAGE = "|s|"
+        const val PEER_MESSAGE_DIV = "|=|"
     }
 }

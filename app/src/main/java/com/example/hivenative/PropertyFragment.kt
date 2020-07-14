@@ -1,17 +1,15 @@
 package com.example.hivenative
 
-import android.content.DialogInterface
+import android.app.Activity
+import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
 import android.widget.Button
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import androidx.core.view.isInvisible
-import androidx.databinding.BindingAdapter
-import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
@@ -19,7 +17,6 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.hivenative.databinding.EditPropertyBinding
-import com.example.hivenative.databinding.FragmentItemBinding
 import com.example.hivenative.databinding.FragmentItemListBinding
 import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.textfield.TextInputEditText
@@ -32,29 +29,32 @@ import kotlinx.coroutines.sync.Mutex
 /**
  * A fragment representing a list of Items.
  */
-class PropertyFragment(private val showBack:Boolean=true, val hiveName:String="Android Hive") : Fragment() {
+class PropertyFragment(
+    private val showBack: Boolean = true,
+    val hiveName: String = "Android Hive"
+) : Fragment() {
     private val hive = Hive(hiveName)
     private var hiveJob: Job? = null
 
     private val propertyAdapter = MyPropertyRecyclerViewAdapter(hive.propertyList)
-    private var peerAdapter:ArrayAdapter<String>? = null
+    private var peerAdapter: ArrayAdapter<String>? = null
     private var peerList: MutableList<String> = mutableListOf()
-    private val peerLock:Mutex = Mutex()
-    private var peerMessageButton:Button? = null
+    private val peerLock: Mutex = Mutex()
+    private var peerMessageButton: Button? = null
     private var frag_binding: FragmentItemListBinding? = null
     private var prop_edit_binding: EditPropertyBinding? = null
 
     private suspend fun hiveMessages() = withContext(Dispatchers.IO) {
-        if(!hive.connected) {
+        if (!hive.connected) {
 
-            launch(Dispatchers.Main){
-                hive.peerMessages().collect{
+            launch(Dispatchers.Main) {
+                hive.peerMessages().collect {
                     frag_binding?.peerMessageFrom = it
                 }
             }
 
             propertyAdapter.onItemRemoved = {
-                confirmDelete(it){removed_index ->
+                confirmDelete(it) { removed_index ->
                     propertyAdapter.notifyItemRemoved(removed_index)
                 }
             }
@@ -66,21 +66,21 @@ class PropertyFragment(private val showBack:Boolean=true, val hiveName:String="A
                 launch(Dispatchers.Default) {
                     peerLock.lock()
                     peerList.clear()
-                    peerList.addAll( hive.peersList.filter { it != hiveName })
+                    peerList.addAll(hive.peersList.filter { it != hiveName })
                     withContext(Dispatchers.Main) {
                         peerAdapter?.notifyDataSetChanged()
                     }
                     peerLock.unlock()
 
                     // update the send to peer button
-                    withContext(Dispatchers.Main){
+                    withContext(Dispatchers.Main) {
                         peerMessageButton?.isEnabled = peerList.size > 0
                     }
                 }
             }
 
             // localhost for machine that android emulator is running on
-            hive.connect("10.0.2.2",3000).collect{
+            hive.connect("10.0.2.2", 3000).collect {
                 onPropertyReceived(it)
 
                 // Show the new value on the list
@@ -99,7 +99,7 @@ class PropertyFragment(private val showBack:Boolean=true, val hiveName:String="A
         }
     }
 
-    private fun editDialog(prop:PropType){
+    private fun editDialog(prop: PropType) {
         val view = prop_edit_binding?.root
         val group = view?.parent as ViewGroup?
         group?.removeView(view)
@@ -110,8 +110,7 @@ class PropertyFragment(private val showBack:Boolean=true, val hiveName:String="A
             .setView(prop_edit_binding?.root)
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                var v:Any? = null
-                v = if(prop.isBool()) {
+                val v: Any? = if (prop.isBool()) {
                     view?.findViewById<MaterialCheckBox>(R.id.prop_bool_value)?.isChecked
                 } else {
                     view?.findViewById<TextInputEditText>(R.id.prop_value)?.text.toString()
@@ -122,11 +121,11 @@ class PropertyFragment(private val showBack:Boolean=true, val hiveName:String="A
             .show()
     }
 
-    private fun confirmDelete(msg:String, done:(Int)->Unit){
+    private fun confirmDelete(msg: String, done: (Int) -> Unit) {
         AlertDialog.Builder(this.requireContext())
             .setTitle("Delete Property")
             .setMessage("Do you really want to delete \"$msg\"?")
-            .setPositiveButton(android.R.string.yes) { _dialog, _whichButton ->
+            .setPositiveButton(android.R.string.yes) { _, _ ->
                 val index = hive.deleteProperty(msg)
                 done(index)
             }
@@ -134,7 +133,7 @@ class PropertyFragment(private val showBack:Boolean=true, val hiveName:String="A
             .show()
     }
 
-    private fun onPropertyReceived(p:PropType){
+    private fun onPropertyReceived(p: PropType) {
         val position = hive.propertyList.size - 1
 
         // update value when it changes
@@ -190,17 +189,18 @@ class PropertyFragment(private val showBack:Boolean=true, val hiveName:String="A
         if (recView is RecyclerView) {
             with(recView) {
                 layoutManager = when {
-                    columnCount <= 1 -> androidx.recyclerview.widget.LinearLayoutManager(context)
-                    else -> androidx.recyclerview.widget.GridLayoutManager(context, columnCount)
+                    columnCount <= 1 -> LinearLayoutManager(context)
+                    else -> GridLayoutManager(context, columnCount)
                 }
                 adapter = propertyAdapter
             }
             debug("items: ${recView.adapter?.itemCount}")
         }
-        this.peerAdapter = ArrayAdapter<String>(requireContext(), android.R.layout.simple_list_item_1, peerList)
-        view.peers_spinner.adapter =  peerAdapter
+        this.peerAdapter =
+            ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, peerList)
+        view.peers_spinner.adapter = peerAdapter
 
-        if(showBack) {
+        if (showBack) {
             view.findViewById<Button>(R.id.button_second).setOnClickListener {
                 findNavController().navigate(R.id.action_PropertiesFragment_to_FirstFragment)
             }
@@ -210,25 +210,32 @@ class PropertyFragment(private val showBack:Boolean=true, val hiveName:String="A
             val name = view.peers_spinner.selectedItem.toString()
             val msg = view.peer_message.text.toString()
             println("<<<< SEND TO PEER: $name = $msg")
-            if(msg.isNotEmpty()){
+            if (msg.isNotEmpty()) {
                 hive.writeToPeer(name, msg)
             }
+            activity?.hideKeyboard(view)
+            view.peer_message.setText("")
         }
-        peerMessageButton?.isEnabled = peerList.size >0
+        peerMessageButton?.isEnabled = peerList.size > 0
     }
 
     companion object {
-
-        // TODO: Customize parameter argument names
+        //
+//        // TODO: Customize parameter argument names
         const val ARG_COLUMN_COUNT = "column-count"
-
-        // TODO: Customize parameter initialization
-        @JvmStatic
-        fun newInstance(columnCount: Int) =
-            PropertyFragment().apply {
-                arguments = Bundle().apply {
-                    putInt(ARG_COLUMN_COUNT, columnCount)
-                }
-            }
+//
+//        // TODO: Customize parameter initialization
+//        @JvmStatic
+//        fun newInstance(columnCount: Int) =
+//            PropertyFragment().apply {
+//                arguments = Bundle().apply {
+//                    putInt(ARG_COLUMN_COUNT, columnCount)
+//                }
+//            }
     }
+}
+
+fun Context.hideKeyboard(view: View) {
+    val inputMethodManager = getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
+    inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
 }

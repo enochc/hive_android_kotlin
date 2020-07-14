@@ -1,100 +1,108 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
+
     <data>
-        <import type="android.view.View"/>
-        <variable name="back" type="java.lang.Boolean"/>
-        <variable name="peerMessageFrom" type="java.lang.String"/>
+
+        <import type="android.view.View" />
+
+        <variable
+            name="back"
+            type="java.lang.Boolean" />
+
+        <variable
+            name="peerMessageFrom"
+            type="java.lang.String" />
     </data>
 
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-
-    android:background="@color/lightGrey"
-    android:layout_marginTop="10dp"
-    tools:context=".CompositeFragment">
-
-    <Button
-        android:id="@+id/button_second"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:visibility="@{back ? View.VISIBLE : View.GONE}"
-        android:text="@string/previous"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"/>
-
-    <TextView
-        android:id="@+id/peer_msg_label"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:layout_constraintTop_toBottomOf="@id/button_second"
-        app:layout_constraintStart_toStartOf="@id/list"
-        android:textAppearance="@style/TextAppearance.AppCompat.Body1"
-        android:text="Last Message:"/>
-
-    <TextView
-        android:id="@+id/peer_msg"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textColor="@color/red"
-        app:layout_constraintTop_toTopOf="@id/peer_msg_label"
-        app:layout_constraintStart_toEndOf="@id/peer_msg_label"
-        android:layout_marginStart="10dp"
-        android:textAppearance="@style/TextAppearance.AppCompat.Body1"
-        android:text="@{peerMessageFrom}"/>
-
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/list"
-        android:name="com.example.hivenative.PropertyFragment"
+    <androidx.constraintlayout.widget.ConstraintLayout xmlns:tools="http://schemas.android.com/tools"
         android:layout_width="match_parent"
-        app:layout_constraintTop_toBottomOf="@id/peer_msg_label"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginLeft="16dp"
-        android:layout_marginRight="16dp"
-        app:layoutManager="LinearLayoutManager"
-        tools:context=".PropertyFragment"
-        tools:listitem="@layout/fragment_item"
-        android:layout_height="wrap_content" />
-
-    <TextView
-        android:id="@+id/spinner_label"
-        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:layout_constraintTop_toBottomOf="@id/list"
-        app:layout_constraintStart_toStartOf="@id/list"
-        app:layout_constraintBottom_toBottomOf="@id/peers_spinner"
-        android:textAppearance="@style/TextAppearance.AppCompat.Body1"
-        android:text="Send message to peer:"/>
 
-    <Spinner
-        android:id="@+id/peers_spinner"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:layout_constraintStart_toEndOf="@id/spinner_label"
-        app:layout_constraintTop_toBottomOf="@id/list"
-        android:spinnerMode="dropdown"/>
-
-    <com.google.android.material.textfield.TextInputEditText
-        android:id="@+id/peer_message"
-        android:layout_width="200dp"
-        android:layout_height="wrap_content"
-        android:hint="Message"
         android:layout_marginTop="10dp"
-        app:layout_constraintStart_toStartOf="@id/spinner_label"
-        app:layout_constraintTop_toBottomOf="@id/spinner_label"/>
-    <Button
-        android:id="@+id/peer_message_btn"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/send"
-        app:layout_constraintEnd_toEndOf="@id/list"
-        app:layout_constraintTop_toTopOf="@id/peer_message"/>
+        android:background="@color/lightGrey"
+        tools:context=".CompositeFragment">
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+        <Button
+            android:id="@+id/button_second"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/previous"
+            android:visibility="@{back ? View.VISIBLE : View.GONE}"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/peer_msg_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Last Message:"
+            android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+            app:layout_constraintStart_toStartOf="@id/list"
+            app:layout_constraintTop_toBottomOf="@id/button_second" />
+
+        <TextView
+            android:id="@+id/peer_msg"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="@{peerMessageFrom}"
+            android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+            android:textColor="@color/red"
+            app:layout_constraintStart_toEndOf="@id/peer_msg_label"
+            app:layout_constraintTop_toTopOf="@id/peer_msg_label" />
+
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/list"
+            android:name="com.example.hivenative.PropertyFragment"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="16dp"
+            android:layout_marginRight="16dp"
+            app:layoutManager="LinearLayoutManager"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/peer_msg"
+            tools:context=".PropertyFragment"
+            tools:listitem="@layout/fragment_item" />
+
+        <TextView
+            android:id="@+id/spinner_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Send message to peer:"
+            android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+            app:layout_constraintBottom_toBottomOf="@id/peers_spinner"
+            app:layout_constraintStart_toStartOf="@id/list"
+            app:layout_constraintTop_toBottomOf="@id/list" />
+
+        <Spinner
+            android:id="@+id/peers_spinner"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:spinnerMode="dropdown"
+            app:layout_constraintStart_toEndOf="@id/spinner_label"
+            app:layout_constraintTop_toBottomOf="@id/list" />
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/peer_message"
+            android:layout_width="200dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:hint="Message"
+            app:layout_constraintStart_toStartOf="@id/spinner_label"
+            app:layout_constraintTop_toBottomOf="@id/spinner_label" />
+
+        <Button
+            android:id="@+id/peer_message_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/send"
+            app:layout_constraintEnd_toEndOf="@id/list"
+            app:layout_constraintTop_toTopOf="@id/peer_message" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
 </layout>

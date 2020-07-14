@@ -10,15 +10,22 @@ import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isInvisible
+import androidx.databinding.BindingAdapter
+import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.hivenative.databinding.EditPropertyBinding
+import com.example.hivenative.databinding.FragmentItemBinding
+import com.example.hivenative.databinding.FragmentItemListBinding
+import com.google.android.material.textfield.TextInputEditText
 import kotlinx.android.synthetic.main.fragment_item_list.view.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.sync.Mutex
 
 
 /**
@@ -30,10 +37,20 @@ class PropertyFragment(private val showBack:Boolean=true, val hiveName:String="A
 
     private val propertyAdapter = MyPropertyRecyclerViewAdapter(hive.propertyList)
     private var peerAdapter:ArrayAdapter<String>? = null
-    private var peerList:MutableList<String> = mutableListOf()
+    private var peerList: MutableList<String> = mutableListOf()
+    private val peerLock:Mutex = Mutex()
+    private var peerMessageButton:Button? = null
+    private var frag_binding: FragmentItemListBinding? = null
+    private var prop_edit_binding: EditPropertyBinding? = null
 
     private suspend fun hiveMessages() = withContext(Dispatchers.IO) {
         if(!hive.connected) {
+
+            launch(Dispatchers.Main){
+                hive.peerMessages().collect{
+                    frag_binding?.peerMessageFrom = it
+                }
+            }
 
             propertyAdapter.onItemRemoved = {
                 confirmDelete(it){removed_index ->
@@ -41,16 +58,22 @@ class PropertyFragment(private val showBack:Boolean=true, val hiveName:String="A
                 }
             }
             propertyAdapter.onItemEdit = {
-                println("<<<< EDIT: $it")
                 editDialog(it)
             }
 
             hive.peersChanged = {
-                GlobalScope.launch {
+                launch(Dispatchers.Default) {
+                    peerLock.lock()
                     peerList.clear()
                     peerList.addAll( hive.peersList.filter { it != hiveName })
                     withContext(Dispatchers.Main) {
                         peerAdapter?.notifyDataSetChanged()
+                    }
+                    peerLock.unlock()
+
+                    // update the send to peer button
+                    withContext(Dispatchers.Main){
+                        peerMessageButton?.isEnabled = peerList.size > 0
                     }
                 }
             }
@@ -74,13 +97,22 @@ class PropertyFragment(private val showBack:Boolean=true, val hiveName:String="A
 
         }
     }
-    private fun editDialog(prop:Hive.Property?){
+
+    private fun editDialog(prop:PropType){
+        val view = prop_edit_binding?.root
+        val group = view?.parent as ViewGroup?
+        group?.removeView(view)
+        prop_edit_binding?.prop = prop
+
         AlertDialog.Builder(this.requireContext())
             .setTitle("Edit Property")
-            .setMessage(prop?.value.toString())
+            .setView(prop_edit_binding?.root)
             .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(android.R.string.ok) {_dialog, _whichButton ->
-                println("<<<< Save property!!")
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                // TODO this updates everything as a sting
+                //  add a type to the PropType type that we can switch on
+                val new = view?.findViewById<TextInputEditText>(R.id.prop_value)?.text.toString()
+                hive.updateProperty(prop.name, new)
             }
             .show()
     }
@@ -139,16 +171,22 @@ class PropertyFragment(private val showBack:Boolean=true, val hiveName:String="A
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        val view = inflater.inflate(R.layout.fragment_item_list, container, false)
-        val recView = view.list
+        prop_edit_binding = EditPropertyBinding.inflate(inflater, container, false)
+        frag_binding = FragmentItemListBinding.inflate(inflater, container, false)
+        frag_binding?.back = showBack
 
+        return frag_binding?.root
+    }
 
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
         // Set the adapter
+        val recView = view.list
         if (recView is RecyclerView) {
             with(recView) {
                 layoutManager = when {
-                    columnCount <= 1 -> LinearLayoutManager(context)
-                    else -> GridLayoutManager(context, columnCount)
+                    columnCount <= 1 -> androidx.recyclerview.widget.LinearLayoutManager(context)
+                    else -> androidx.recyclerview.widget.GridLayoutManager(context, columnCount)
                 }
                 adapter = propertyAdapter
             }
@@ -156,18 +194,22 @@ class PropertyFragment(private val showBack:Boolean=true, val hiveName:String="A
         }
         this.peerAdapter = ArrayAdapter<String>(requireContext(), android.R.layout.simple_list_item_1, peerList)
         view.peers_spinner.adapter =  peerAdapter
-        return view
-    }
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
         if(showBack) {
             view.findViewById<Button>(R.id.button_second).setOnClickListener {
                 findNavController().navigate(R.id.action_PropertiesFragment_to_FirstFragment)
             }
-        } else {
-            view.button_second.visibility = View.INVISIBLE
         }
+        peerMessageButton = view.peer_message_btn
+        peerMessageButton?.setOnClickListener {
+            val name = view.peers_spinner.selectedItem.toString()
+            val msg = view.peer_message.text.toString()
+            println("<<<< SEND TO PEER: $name = $msg")
+            if(msg.isNotEmpty()){
+                hive.writeToPeer(name, msg)
+            }
+        }
+        peerMessageButton?.isEnabled = peerList.size >0
     }
 
     companion object {

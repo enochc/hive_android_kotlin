@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:app="http://schemas.android.com/apk/res-auto">
+
+<data>
+        <import type="android.view.View"/>
+        <variable name="prop" type="com.example.hivenative.PropType"/>
+</data>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <TextView
+        android:id="@+id/prop_name"
+        android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginStart="25dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@{prop.name}"/>
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/prop_value"
+            android:layout_width="200dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@{prop.property.value.toString()}"
+            app:layout_constraintStart_toStartOf="@id/prop_name"
+            app:layout_constraintTop_toBottomOf="@id/prop_name"/>
+
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+</layout>

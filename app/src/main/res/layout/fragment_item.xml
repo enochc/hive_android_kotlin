@@ -1,28 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+
+<androidx.constraintlayout.widget.ConstraintLayout
     android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_centerVertical="true"
+    android:layout_height="30dp"
     android:orientation="horizontal">
     <Button
         android:id="@+id/btn_delete"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
         android:layout_width="30dp"
-        android:layout_height="30dp"
+        android:layout_height='30dp'
         android:textAlignment="center"
         android:padding="0dp"
         android:text="X"/>
 
     <TextView
+        app:layout_constraintStart_toEndOf="@id/btn_delete"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
         android:id="@+id/item_number"
         android:layout_width="180dp"
         android:layout_height="wrap_content"
         android:textAppearance="?attr/textAppearanceListItem" />
 
     <Button
+        app:layout_constraintStart_toEndOf="@id/item_number"
+        app:layout_constraintTop_toTopOf="parent"
         android:id="@+id/edit_btn"
         android:layout_width="wrap_content"
-        android:layout_height="match_parent"
+        android:layout_height="30dp"
         android:textSize="12sp"
         android:padding="0sp"
         android:text="" />
-</LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
+</layout>

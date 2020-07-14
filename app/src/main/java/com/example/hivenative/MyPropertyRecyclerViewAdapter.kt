@@ -32,7 +32,7 @@ class MyPropertyRecyclerViewAdapter(
     }
 
     var onItemRemoved: ((i:String) -> Unit)? = null
-    var onItemEdit: ((p:Hive.Property?) -> Unit)? = null
+    var onItemEdit: ((p:PropType) -> Unit)? = null
 
     override fun getItemCount(): Int = values.size
 
@@ -43,11 +43,12 @@ class MyPropertyRecyclerViewAdapter(
         var property:Hive.Property? = null
 
         init {
+            editBtn.transformationMethod = null
             view.btn_delete.setOnClickListener{
                 onItemRemoved?.invoke(idView.text.toString())
             }
             editBtn.setOnClickListener {
-                onItemEdit?.invoke(property)
+                onItemEdit?.invoke(PropType(idView.text.toString(), property!!))
             }
         }
 

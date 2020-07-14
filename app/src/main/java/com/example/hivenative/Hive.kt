@@ -32,6 +32,8 @@ val PROPERTIES = "|P|"
 val PROPERTY = "|p|"
 val REQUEST_PEERS = "<p|"
 val ACK  = "<<|";
+val PEER_MESSAGE = "|s|"
+val PEER_MESSAGE_DIV = "|=|"
 
 class Hive(val name:String ="Android client") {
     private var connection: Socket? = null
@@ -43,7 +45,8 @@ class Hive(val name:String ="Android client") {
 
     private var writer: OutputStream? = null
 
-    val propertyChannel:Channel<PropType> = Channel()
+    val propertyChannel: Channel<PropType> = Channel()
+    private val messageChanel: Channel<String> = Channel()
 
     fun disconnect() {
 
@@ -58,6 +61,14 @@ class Hive(val name:String ="Android client") {
         connectedChanged = f
     }
 
+    suspend fun peerMessages(): Flow<String> {
+        return flow{
+            messageChanel.consumeEach {
+                emit(it)
+            }
+        }
+    }
+
 
     suspend fun connect(address: String, port: Int): Flow<PropType> {
         if (!connected) {
@@ -67,6 +78,7 @@ class Hive(val name:String ="Android client") {
                 writer = connection?.getOutputStream()
 
                 // send header with peer name then request peer updates
+                // TODO move request_peers into the header message
                 write("${HEADER}NAME=${this.name}")
                 write(REQUEST_PEERS)
             } catch (e: ConnectException) {
@@ -161,9 +173,13 @@ class Hive(val name:String ="Android client") {
                             _peers.add(x[0])
                         }
                         peersChanged?.invoke()
+                    } else if(msgType == PEER_MESSAGE) {
+                        println("Received Peer Message: $msg")
+                        messageChanel.send(msg)
                     } else {
                         println("ERROR: unknown message: $msg")
                     }
+
 
 
                 } catch (e: SocketException) {
@@ -176,7 +192,7 @@ class Hive(val name:String ="Android client") {
     }
 
 
-    fun write(message: String) {
+    private fun write(message: String) {
         if (connected) {
             runBlocking {
                 withContext(Dispatchers.IO){
@@ -190,6 +206,11 @@ class Hive(val name:String ="Android client") {
                 }
             }
         }
+    }
+
+    fun writeToPeer(peerName:String, msg:String){
+        val msg = "$PEER_MESSAGE$peerName$PEER_MESSAGE_DIV$msg"
+        write(msg)
     }
 
     @ExperimentalUnsignedTypes
@@ -238,6 +259,13 @@ class Hive(val name:String ="Android client") {
         } else{
             _properties.add(pt)
         }
+    }
+
+    fun updateProperty(prop_name:String, value:String) {
+        val p = getProperty(prop_name)
+        p?.property?.set(Property(value))
+        val msg = "$PROPERTY${prop_name}=\"${value}\""
+        write(msg)
     }
 
     private fun getProperty(name:String):PropType? {

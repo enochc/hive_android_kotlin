@@ -183,7 +183,7 @@ class Hive(val name: String = "Android client") {
                                 debug("remove|| $msg")
                                 _properties.removeAt(i)
                                 val type = propertyToType(p.property.value)
-                                val prop = PropType(msg, Property(null), type)
+                                val prop = PropType(msg, Property(null), type, doRemove = i)
                                 propertyChannel.send(prop)
                                 break
                             }

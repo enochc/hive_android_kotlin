@@ -43,8 +43,6 @@ class HiveViewModel(private val hiveName: String = "Android Hive") : ViewModel()
 
     @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
     fun resumeHive() {
-        Log.d(javaClass.name, "<<<<<<<<<<<  VIEW MODEL INIT")
-
         job = viewModelScope.launch {
             withContext(Dispatchers.IO) {
 

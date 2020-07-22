@@ -11,11 +11,9 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -27,13 +25,10 @@ import com.example.hivenative.models.HiveViewModelFactory
 import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.android.synthetic.main.fragment_item_list.view.*
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.sync.Mutex
 
 
 /**
@@ -41,9 +36,8 @@ import kotlinx.coroutines.sync.Mutex
  */
 class PropertyFragment(
     private val showBack: Boolean = true,
-    val hiveName: String = "Android Hive"
+    private val hiveName: String = "Android Hive"
 ) : Fragment() {
-    private var hiveJob: Job? = null
 
     // An activityViewModel would be more sufficient, but The intention is to create multiple
     // clients, one for each instance of the fragment
@@ -55,19 +49,19 @@ class PropertyFragment(
     private var peerAdapter: ArrayAdapter<String>? = null
     private var peerList: MutableList<String> = mutableListOf()
     private var peerMessageButton: Button? = null
-    private var frag_binding: FragmentItemListBinding? = null
-    private var prop_edit_binding: EditPropertyBinding? = null
+    private var fragBinding: FragmentItemListBinding? = null
+    private var propEditBinding: EditPropertyBinding? = null
 
 
     private fun editDialog(prop: PropType) {
-        val view = prop_edit_binding?.root
+        val view = propEditBinding?.root
         val group = view?.parent as ViewGroup?
         group?.removeView(view)
-        prop_edit_binding?.prop = prop
+        propEditBinding?.prop = prop
 
         AlertDialog.Builder(this.requireContext())
             .setTitle("Edit Property")
-            .setView(prop_edit_binding?.root)
+            .setView(propEditBinding?.root)
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val v: Any? = if (prop.isBool()) {
@@ -118,6 +112,7 @@ class PropertyFragment(
             columnCount = it.getInt(ARG_COLUMN_COUNT)
         }
 
+        // Notify hive when to stop and resume peer communication
         lifecycle.addObserver(hiveModel)
     }
 
@@ -125,16 +120,16 @@ class PropertyFragment(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        prop_edit_binding = EditPropertyBinding.inflate(inflater, container, false)
-        frag_binding = FragmentItemListBinding.inflate(inflater, container, false)
-        frag_binding?.back = showBack
+        propEditBinding = EditPropertyBinding.inflate(inflater, container, false)
+        fragBinding = FragmentItemListBinding.inflate(inflater, container, false)
+        fragBinding?.back = showBack
 
-        return frag_binding?.root
+        return fragBinding?.root
     }
 
     fun observeHive(lifecyleOwner: LifecycleOwner) {
         hiveModel.peerMessage.observe(lifecyleOwner, Observer {
-            frag_binding?.peerMessageFrom = it
+            fragBinding?.peerMessageFrom = it
         })
         hiveModel.peers.observe(lifecyleOwner, Observer {
             peerList.clear()

@@ -11,6 +11,9 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
@@ -18,10 +21,15 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.hivenative.databinding.EditPropertyBinding
 import com.example.hivenative.databinding.FragmentItemListBinding
+import com.example.hivenative.models.HiveViewModel
 import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.android.synthetic.main.fragment_item_list.view.*
-import kotlinx.coroutines.*
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.sync.Mutex
 
@@ -33,10 +41,13 @@ class PropertyFragment(
     private val showBack: Boolean = true,
     val hiveName: String = "Android Hive"
 ) : Fragment() {
-    private val hive = Hive(hiveName)
+//    private val hive = Hive(hiveName)
     private var hiveJob: Job? = null
+    // An activityViewModel would be more sufficient, but The intention is to create multiple
+    // clients, one for each instance of the fragment
+    private val hiveModel: HiveViewModel by viewModels()
 
-    private val propertyAdapter = MyPropertyRecyclerViewAdapter(hive.propertyList)
+    private var propertyAdapter:MyPropertyRecyclerViewAdapter? = null
     private var peerAdapter: ArrayAdapter<String>? = null
     private var peerList: MutableList<String> = mutableListOf()
     private val peerLock: Mutex = Mutex()
@@ -44,60 +55,60 @@ class PropertyFragment(
     private var frag_binding: FragmentItemListBinding? = null
     private var prop_edit_binding: EditPropertyBinding? = null
 
-    private suspend fun hiveMessages() = withContext(Dispatchers.IO) {
-        if (!hive.connected) {
+//    private suspend fun hiveMessages() = withContext(Dispatchers.IO) {
+//        if (!hive.connected) {
+//
+//            launch(Dispatchers.Main) {
+//                hive.peerMessages().collect {
+//                    frag_binding?.peerMessageFrom = it
+//                }
+//            }
+//
+//            propertyAdapter.onItemRemoved = {
+//                confirmDelete(it) { removed_index ->
+//                    propertyAdapter.notifyItemRemoved(removed_index)
+//                }
+//            }
+//            propertyAdapter.onItemEdit = {
+//                editDialog(it)
+//            }
+//
+//            hive.peersChanged = {
+//                launch(Dispatchers.Default) {
+//                    peerLock.lock()
+//                    peerList.clear()
+//                    peerList.addAll(hive.peersList.filter { it != hiveName })
+//                    withContext(Dispatchers.Main) {
+//                        peerAdapter?.notifyDataSetChanged()
+//                    }
+//                    peerLock.unlock()
+//
+//                    // update the send to peer button
+//                    withContext(Dispatchers.Main) {
+//                        peerMessageButton?.isEnabled = peerList.size > 0
+//                    }
+//                }
+//            }
 
-            launch(Dispatchers.Main) {
-                hive.peerMessages().collect {
-                    frag_binding?.peerMessageFrom = it
-                }
-            }
+//            // localhost for machine that android emulator is running on
+//            hive.connect("10.0.2.2", 3000).collect {
+//                onPropertyReceived(it)
+//
+//                // Show the new value on the list
+//                if (it.doRemove == null) {
+//                    withContext(Dispatchers.Main) {
+//                        propertyAdapter.notifyItemInserted(hive.propertyList.size)
+//                    }
+//                } else {
+//                    // Removed from another client and came over the hive stream
+//                    withContext(Dispatchers.Main) {
+//                        propertyAdapter.notifyItemRemoved(it.doRemove)
+//                    }
+//                }
+//            }
 
-            propertyAdapter.onItemRemoved = {
-                confirmDelete(it) { removed_index ->
-                    propertyAdapter.notifyItemRemoved(removed_index)
-                }
-            }
-            propertyAdapter.onItemEdit = {
-                editDialog(it)
-            }
-
-            hive.peersChanged = {
-                launch(Dispatchers.Default) {
-                    peerLock.lock()
-                    peerList.clear()
-                    peerList.addAll(hive.peersList.filter { it != hiveName })
-                    withContext(Dispatchers.Main) {
-                        peerAdapter?.notifyDataSetChanged()
-                    }
-                    peerLock.unlock()
-
-                    // update the send to peer button
-                    withContext(Dispatchers.Main) {
-                        peerMessageButton?.isEnabled = peerList.size > 0
-                    }
-                }
-            }
-
-            // localhost for machine that android emulator is running on
-            hive.connect("10.0.2.2", 3000).collect {
-                onPropertyReceived(it)
-
-                // Show the new value on the list
-                if (it.doRemove == null) {
-                    withContext(Dispatchers.Main) {
-                        propertyAdapter.notifyItemInserted(hive.propertyList.size)
-                    }
-                } else {
-                    // Removed from another client and came over the hive stream
-                    withContext(Dispatchers.Main) {
-                        propertyAdapter.notifyItemRemoved(it.doRemove)
-                    }
-                }
-            }
-
-        }
-    }
+//        }
+//    }
 
     private fun editDialog(prop: PropType) {
         val view = prop_edit_binding?.root
@@ -115,7 +126,7 @@ class PropertyFragment(
                 } else {
                     view?.findViewById<TextInputEditText>(R.id.prop_value)?.text.toString()
                 }
-                hive.updateProperty(prop.name, v)
+                hiveModel.updateProperty(prop.name, v)
 
             }
             .show()
@@ -126,7 +137,7 @@ class PropertyFragment(
             .setTitle("Delete Property")
             .setMessage("Do you really want to delete \"$msg\"?")
             .setPositiveButton(android.R.string.yes) { _, _ ->
-                val index = hive.deleteProperty(msg)
+                val index = hiveModel.deleteProperty(msg)
                 done(index)
             }
             .setNegativeButton(android.R.string.no, null)
@@ -134,13 +145,14 @@ class PropertyFragment(
     }
 
     private fun onPropertyReceived(p: PropType) {
-        val position = hive.propertyList.size - 1
+//        val position = hive.propertyList.size - 1
+        val position = hiveModel.properties.size - 1
 
         // update value when it changes
         p.property.connect {
             GlobalScope.launch {
                 withContext(Dispatchers.Main) {
-                    propertyAdapter.notifyItemChanged(position)
+                    propertyAdapter?.notifyItemChanged(position)
                 }
             }
         }
@@ -149,16 +161,16 @@ class PropertyFragment(
 
     override fun onPause() {
         super.onPause()
-        hive.disconnect()
-        hiveJob?.cancel()
+//        hive.disconnect()
+//        hiveJob?.cancel()
     }
 
     override fun onResume() {
         super.onResume()
 
-        hiveJob = viewLifecycleOwner.lifecycleScope.launch {
-            hiveMessages()
-        }
+//        hiveJob = viewLifecycleOwner.lifecycleScope.launch {
+//            hiveMessages()
+//        }
     }
 
     private var columnCount = 1
@@ -184,6 +196,32 @@ class PropertyFragment(
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        propertyAdapter = MyPropertyRecyclerViewAdapter(hiveModel.properties)
+        propertyAdapter?.let {adaptor ->
+            adaptor.onItemRemoved = {
+                confirmDelete(it) { removed_index ->
+                    adaptor.notifyItemRemoved(removed_index)
+                }
+            }
+            adaptor.onItemEdit = {
+                editDialog(it)
+            }
+        }
+
+        hiveModel.propertyReceived.observe(viewLifecycleOwner, Observer {
+            println("<<< PROPERTy IN VIEW:  ${it.doRemove}")
+
+            if (it.doRemove == null) {
+                    propertyAdapter?.notifyItemInserted(hiveModel.properties.size)
+            } else {
+                // Removed from another client and came over the hive stream
+                    propertyAdapter?.notifyItemRemoved(it.doRemove)
+            }
+
+        })
+
+
         // Set the adapter
         val recView = view.list
         if (recView is RecyclerView) {
@@ -211,12 +249,14 @@ class PropertyFragment(
             val msg = view.peer_message.text.toString()
             println("<<<< SEND TO PEER: $name = $msg")
             if (msg.isNotEmpty()) {
-                hive.writeToPeer(name, msg)
+                hiveModel.writeToPeer(name, msg)
             }
             activity?.hideKeyboard(view)
             view.peer_message.setText("")
         }
         peerMessageButton?.isEnabled = peerList.size > 0
+
+
     }
 
     companion object {

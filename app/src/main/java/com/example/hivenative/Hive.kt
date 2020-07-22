@@ -101,8 +101,10 @@ class Hive(val name: String = "Android client") {
 
 
     suspend fun connect(address: String, port: Int): Flow<PropType> {
+        debug("<<<< CONNECT 1")
         if (!connected) {
             try {
+                debug("<<<< CONNECT 2")
                 connection = Socket(address, port)
                 connected = true
                 writer = connection?.getOutputStream()

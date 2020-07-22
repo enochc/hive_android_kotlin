@@ -35,7 +35,7 @@ fun propertyToType(p: Any?): PropertyType {
 class PropType(
     val name: String,
     val property: Hive.Property,
-    val type: PropertyType,
+    private val type: PropertyType,
     val doRemove: Int? = null
 ) {
     fun isBool(): Boolean {
@@ -55,13 +55,8 @@ class PropType(
     }
 }
 
-class Peer(val name: String, val address: String) {
-    override fun toString(): String {
-        return "\"${this.name}\": ${this.address}"
-    }
-}
 
-val TAG = "Hive <<"
+const val TAG = "Hive <<"
 fun debug(s: String) = Log.d(TAG, s)
 
 
@@ -100,11 +95,10 @@ class Hive(val name: String = "Android client") {
     }
 
 
+    @ExperimentalUnsignedTypes
     suspend fun connect(address: String, port: Int): Flow<PropType> {
-        debug("<<<< CONNECT 1")
         if (!connected) {
             try {
-                debug("<<<< CONNECT 2")
                 connection = Socket(address, port)
                 connected = true
                 writer = connection?.getOutputStream()
@@ -133,6 +127,7 @@ class Hive(val name: String = "Android client") {
     }
 
     // this reads from the channel
+    @ExperimentalCoroutinesApi
     private suspend fun properties(): Flow<PropType> {
         return flow {
             for (p in _properties) {
@@ -175,7 +170,7 @@ class Hive(val name: String = "Android client") {
                     if (msgType == HEADER) {
                         //TODO maybe do something with this? the name of the server Hive
                         val name = msg.split("NAME=")[1]
-                        println("HEADER NAME: $name")
+                        debug("HEADER NAME: $name")
                     } else if (msgType == DELETE) { // delete message
 
                         for ((i, p) in _properties.withIndex()) {
@@ -198,9 +193,9 @@ class Hive(val name: String = "Android client") {
 
                         emit(msg)
                     } else if (msgType == ACK) {
-                        println("ACK RECEIVED")
+                        debug("ACK RECEIVED")
                     } else if (msgType == REQUEST_PEERS) {
-                        println("<<<< RECEIVED PEERS $msg")
+                        debug("<<<< RECEIVED PEERS $msg")
                         _peers.clear()
                         for (p in msg.split(",").iterator()) {
                             val x = p.split("|")
@@ -208,15 +203,15 @@ class Hive(val name: String = "Android client") {
                         }
                         peersChanged?.invoke()
                     } else if (msgType == PEER_MESSAGE) {
-                        println("Received Peer Message: $msg")
+                        debug("Received Peer Message: $msg")
                         messageChanel.send(msg)
                     } else {
-                        println("ERROR: unknown message: $msg")
+                        Log.e(javaClass.name, "ERROR: unknown message: $msg")
                     }
 
 
                 } catch (e: SocketException) {
-                    println("Socket Closed")
+                    debug("Socket Closed")
                     _properties.clear()
                     connected = false
                 }
@@ -231,11 +226,11 @@ class Hive(val name: String = "Android client") {
                 withContext(Dispatchers.IO) {
                     val msgByts = (message).toByteArray(Charset.defaultCharset())
                     val sBytes = intToByteArray(msgByts.size)
-                    println("<<<< writing: $message")
+                    debug("<<<< writing: $message")
                     writer?.write(sBytes)
                     writer?.write(msgByts)
                     writer?.flush()
-                    println("written")
+                    debug("written")
                 }
             }
         }
@@ -275,7 +270,7 @@ class Hive(val name: String = "Android client") {
     fun deleteProperty(name: String): Int {
         for ((i, p) in _properties.withIndex()) {
             if (p.name == name) {
-                write("|d|${p.name}")
+                write("$DELETE${p.name}")
                 _properties.removeAt(i)
                 return i
             }

@@ -1,2 +1,18 @@
-include ':app'
-rootProject.name = "Hive Native"
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "Hive Android"
+// :hive is the library (the Hive service and client), :app a small app for trying it out.
+include ':hive', ':app'

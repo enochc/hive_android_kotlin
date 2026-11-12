@@ -1,16 +1,14 @@
 <resources>
-    <string name="app_name">Hive Native</string>
-    <string name="action_settings">Settings</string>
-    <!-- Strings used for fragments for navigation -->
-    <string name="first_fragment_label">First Fragment</string>
-    <string name="composite_fragment_label">Composite Fragment</string>
-    <string name="properties_fragment_label">Properties</string>
-    <string name="next">Next</string>
-    <string name="properties">Properties</string>
-    <string name="composite">Composite</string>
-    <string name="previous">Previous</string>
+    <string name="app_name">Hive Tester</string>
+    <string name="server_hint">Server host:port</string>
+    <string name="name_hint">This hive\'s name</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="property_name_hint">Property name</string>
+    <string name="property_value_hint">Value</string>
+    <string name="set">Set</string>
+    <string name="properties_help">Tap a property to change it, hold to delete it. A property shown as #id has a name this hive hasn\'t been told: enter it above with no value to name it.</string>
+    <string name="message_hint">Message</string>
     <string name="send">Send</string>
-
-    <string name="hello_first_fragment">Hello first fragment</string>
-    <string name="hello_second_fragment">Hello second fragment. Arg: %1$s</string>
+    <string name="no_message">No peer message received yet</string>
 </resources>

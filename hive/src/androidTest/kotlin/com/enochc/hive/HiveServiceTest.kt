@@ -60,14 +60,38 @@ class HiveServiceTest {
     }
 
     @Test
+    fun namesArriveFromTheServer() {
+        val served = mapOf("light" to 1, "label" to "hi", "ratio" to 1.5, "on" to true)
+        server.start(HiveConfig(name = "Serv", listen = "127.0.0.1:35123", properties = served))
+        server.properties.await("the server's own properties") { it.size == served.size }
+
+        // The phone is told nothing about the properties in advance.
+        val phone = bindPhone()
+        phone.start(HiveConfig(name = "Phone", connect = "127.0.0.1:35123"))
+        val named = phone.properties.await("every property under its name") { list ->
+            list.size == served.size && list.all { it.name != null }
+        }
+        assertEquals(served.keys, named.map { it.name }.toSet())
+        assertEquals("hi", named.first { it.name == "label" }.value)
+
+        // What the phone creates, the server learns the name of.
+        phone.set("volume", 7)
+        server.properties.await("the phone's property, named") { list -> list.any { it.name == "volume" && it.value == 7L } }
+        // And what the server creates reaches the phone with its name.
+        server.set("fresh", "new")
+        phone.properties.await("the server's new property, named") { list -> list.any { it.name == "fresh" && it.value == "new" } }
+    }
+
+    /** Without the name exchange, as with a server older than Hive 0.3.0. */
+    @Test
     fun aClientMirrorsItsServerThroughTheService() {
         val served = mapOf("light" to 1, "label" to "hi", "ratio" to 1.5, "on" to true)
-        server.start(HiveConfig(name = "Serv", listen = "127.0.0.1:35120", properties = served))
+        server.start(HiveConfig(name = "Serv", listen = "127.0.0.1:35120", properties = served, syncNames = false))
         server.properties.await("the server's own properties") { it.size == served.size }
 
         val phone = bindPhone()
         assertEquals(HiveState.Stopped, phone.state.value)
-        phone.start(HiveConfig(name = "Phone", connect = "127.0.0.1:35120", names = listOf("light")))
+        phone.start(HiveConfig(name = "Phone", connect = "127.0.0.1:35120", names = listOf("light"), syncNames = false))
         phone.state.await("the connection") { it == HiveState.Running(1) }
         server.state.await("the server counting the phone") { it == HiveState.Running(1) }
 
@@ -108,7 +132,7 @@ class HiveServiceTest {
         server.stop()
         phone.state.await("the lost connection") { it == HiveState.Connecting }
         assertTrue(phone.peers.value.isEmpty())
-        server.start(HiveConfig(name = "Serv", listen = "127.0.0.1:35120", properties = mapOf("light" to 5)))
+        server.start(HiveConfig(name = "Serv", listen = "127.0.0.1:35120", properties = mapOf("light" to 5), syncNames = false))
         phone.state.await("the reconnection") { it == HiveState.Running(1) }
         phone.properties.await("the new server's properties") { it.value("light") == 5L }
 

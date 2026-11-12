@@ -63,7 +63,8 @@ hive.sendToPeer("Server", "hello")
 
 Things worth knowing:
 
-- **Properties arrive without names.** Hives exchange property ids (a hash of the name), never the names. A property is reported with its name only if this hive was told it: in `HiveConfig.properties` or `names`, by `set(name, …)`, or by `registerName`. Otherwise `name` is null and `label` is the id in hex. You can still set or delete it by id.
+- **Names come from the server.** Values travel with property ids (a hash of the name), and the names are exchanged separately, once. By default (`HiveConfig.syncNames`) the client asks its server for them, so a property can show up with `name` null and `label` as its id in hex for a moment, then get its name. Names the client introduces, with `set(name, …)` or `registerName`, go to the server and on to its other clients.
+- **Servers older than Hive 0.3.0** don't know the name request and stop when they receive it. Connect to one with `syncNames = false`; its properties then only have names you supply, in `HiveConfig.properties` or `names` or through `registerName`, and can otherwise be set and deleted by id.
 - **It is a mirror.** `set` and `delete` ask the hive; `properties` changes when the hive reports the result, the same as for changes made elsewhere.
 - **Reconnecting.** A client that loses its server goes to `Connecting` and reconnects by itself. While the server is unreachable it retries every 10 seconds.
 - **Not a foreground service.** The hive stops with the last binding, and Android may stop the process once the app is off screen.

@@ -88,8 +88,9 @@ class MainActivity : AppCompatActivity() {
             val value = propertyValue.text.toString()
             if (name.isEmpty()) return@setOnClickListener
             if (value.isEmpty()) {
-                // Hives exchange ids, not names: this tells ours what to
-                // call a property it so far only has the id of.
+                // Names normally come from the server. One older than
+                // Hive 0.3.0 doesn't send them, and its properties show as
+                // #id until they are named here.
                 client?.registerName(name)
             } else {
                 val current = properties.items.firstOrNull { it.name == name }?.value

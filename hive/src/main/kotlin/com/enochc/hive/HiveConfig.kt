@@ -11,10 +11,15 @@ package com.enochc.hive
  * @param properties properties this hive starts with, by name. Values are
  *   [String], [Boolean], [Int]/[Long] or [Float]/[Double]. A client's are
  *   replaced by the server's values for the same names once connected.
- * @param names names of further properties, without a starting value.
- *   Hives exchange property ids, never names, so a property is only
- *   reported with its name if it is listed here or in [properties] (or
- *   named later through [HiveClient.set] or [HiveClient.registerName]).
+ * @param names names of further properties, without a starting value,
+ *   for this hive to know from the start.
+ * @param syncNames exchange property names with the hives this one is
+ *   connected to, so properties are reported under their names without
+ *   being listed here. Values travel with ids only; names are sent once,
+ *   to hives that ask. Turn it off when any of those hives is older than
+ *   Hive 0.3.0, which stops on the request. A property is then only named
+ *   if it is in [properties] or [names], or named through
+ *   [HiveClient.set] or [HiveClient.registerName].
  * @param authSecret shared secret both ends must hold. Needs a libhive.so
  *   built with the `auth` feature.
  * @param waveTimeoutMs ping the other end after this long without hearing
@@ -30,6 +35,7 @@ data class HiveConfig(
     val listen: String? = null,
     val properties: Map<String, Any> = emptyMap(),
     val names: List<String> = emptyList(),
+    val syncNames: Boolean = true,
     val authSecret: String? = null,
     val waveTimeoutMs: Long? = null,
     val extraToml: String = "",

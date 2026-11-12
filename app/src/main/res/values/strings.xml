@@ -7,7 +7,7 @@
     <string name="property_name_hint">Property name</string>
     <string name="property_value_hint">Value</string>
     <string name="set">Set</string>
-    <string name="properties_help">Tap a property to change it, hold to delete it. A property shown as #id has a name this hive hasn\'t been told: enter it above with no value to name it.</string>
+    <string name="properties_help">Tap a property to change it, hold to delete it.</string>
     <string name="message_hint">Message</string>
     <string name="send">Send</string>
     <string name="no_message">No peer message received yet</string>

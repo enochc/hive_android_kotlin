@@ -12,7 +12,11 @@ import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 
-/** A property and its current value: a [String], [Boolean], [Long] or [Double]. */
+/**
+ * A property and its current value: a [String], [Boolean], [Long] or
+ * [Double]. [name] is null while the hive hasn't learned it, which with
+ * [HiveConfig.syncNames] is only until the server has answered.
+ */
 data class HiveProperty(val id: Long, val name: String?, val value: Any) {
     /** The name, or the id in hex for a property this hive doesn't know the name of. */
     val label: String get() = name ?: "#" + java.lang.Long.toHexString(id)
@@ -193,6 +197,7 @@ class HiveClient(private val reconnectDelayMs: Long = 2000) : AutoCloseable {
             hive = started
             config.names.forEach { started.registerName(it) }
             if (config.connect != null) started.requestPeers()
+            if (config.syncNames) started.requestNames()
         } catch (e: IllegalArgumentException) {
             fail(e.message ?: "the config was refused")
         } catch (e: LinkageError) {
@@ -235,6 +240,18 @@ class HiveClient(private val reconnectDelayMs: Long = 2000) : AutoCloseable {
             }
         }
 
+        override fun onPropertyName(id: Long, name: String) {
+            if (mine != generation) return
+            names[id] = name
+            synchronized(table) {
+                val known = table[id]
+                if (known != null && known.name == null) {
+                    table[id] = known.copy(name = name)
+                    _properties.value = table.values.toList()
+                }
+            }
+        }
+
         override fun onPeers(peers: List<Peer>) {
             if (mine == generation) _peers.value = peers
         }
@@ -250,8 +267,9 @@ class HiveClient(private val reconnectDelayMs: Long = 2000) : AutoCloseable {
                 return
             }
             // A hive doesn't go looking for its server again; a new one does.
-            _state.value = HiveState.Connecting
+            // Peers first, so whoever reacts to the state finds them gone.
             _peers.value = emptyList()
+            _state.value = HiveState.Connecting
             try {
                 worker.schedule({
                     if (mine == generation) {

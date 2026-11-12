@@ -16,6 +16,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -32,6 +33,13 @@ class HiveServiceTest {
 
     private val server = HiveClient()
     private val binding = HiveServiceConnection(ApplicationProvider.getApplicationContext<Context>())
+
+    companion object {
+        /** So a failing run can be read back from logcat (tag "hive"). */
+        @JvmStatic
+        @BeforeClass
+        fun logToLogcat() = NativeHive.initLogging(HiveLogLevel.INFO)
+    }
 
     @After
     fun tearDown() {

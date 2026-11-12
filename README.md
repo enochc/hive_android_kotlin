@@ -70,6 +70,20 @@ Things worth knowing:
 - **Not a foreground service.** The hive stops with the last binding, and Android may stop the process once the app is off screen.
 - **Shrinking.** The library ships a consumer rule that keeps `com.enochc.hive`, which the native code looks up by name.
 
+## Logging
+
+Hive's own log (connections, handshakes, refused configs, panics) is off until asked for. Turn it on once, early, and it goes to logcat under the tag `hive`:
+
+```kotlin
+NativeHive.initLogging(HiveLogLevel.INFO)
+```
+
+```bash
+adb logcat -s hive
+```
+
+It covers every hive in the process and only the first call takes effect. `DEBUG` and `TRACE` write several lines per property update; the test app uses `DEBUG`.
+
 ## Trying it
 
 Run a hive on your computer. The crate has an example for this, which prints what happens and takes commands on stdin:

@@ -20,9 +20,11 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.enochc.hive.HiveClient
 import com.enochc.hive.HiveConfig
+import com.enochc.hive.HiveLogLevel
 import com.enochc.hive.HiveProperty
 import com.enochc.hive.HiveServiceConnection
 import com.enochc.hive.HiveState
+import com.enochc.hive.NativeHive
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -30,6 +32,11 @@ import kotlinx.coroutines.launch
 
 /** Holds the binding to the Hive service, so the hive outlives rotation. */
 class MainViewModel(app: Application) : AndroidViewModel(app) {
+    init {
+        // What the hive itself is doing, in logcat under the tag "hive".
+        NativeHive.initLogging(HiveLogLevel.DEBUG)
+    }
+
     private val service = HiveServiceConnection(app).also { it.bind() }
     val client: StateFlow<HiveClient?> = service.client
 
